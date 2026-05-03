@@ -1,0 +1,2076 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Zombie Sword</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #000; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; }
+    canvas { display: block; cursor: crosshair; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// ── Constants ──────────────────────────────────────────────────────────────
+const CW = 1200, CH = 700;
+const STRIP = 2;
+const NR = CW / STRIP; // 600 ray strips
+const FOV = Math.PI * 66 / 180;
+const HALF_FOV = FOV / 2;
+const MAX_D = 24;
+const MAP_W = 24, MAP_H = 17;
+
+// ── World Definitions ──────────────────────────────────────────────────────
+const WORLDS = [
+ {name:'DEAD RUINS',      desc:'Ancient fortress at the edge of night',        col:'#1e2838',
+  w0:[92,105,118],w1:[68,78,90],   shd:2.2,wr:30,wg:15,
+  ct:'#050509',cb:'#0e0e1c',ft:'#110d05',fb:'#060401',
+  tc:'rgba(255,170,60,0.13)',tc2:'rgba(255,100,20,0.04)',tR:520,va:.78,sx:3.5,sy:8.5,
+  map:[[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,1],[1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1],[1,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]]},
+
+ {name:'CATACOMBS',       desc:'Bone corridors beneath forgotten tombs',         col:'#2a1c0c',
+  w0:[145,132,108],w1:[108,96,76], shd:1.8,wr:18,wg:16,
+  ct:'#070504',cb:'#120e06',ft:'#0d0902',fb:'#060400',
+  tc:'rgba(255,210,90,0.14)',tc2:'rgba(200,140,30,0.06)',tR:440,va:.84,sx:3.5,sy:8.5,
+  map:[[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],[1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1],[1,0,1,1,0,0,1,0,1,1,1,0,0,1,1,1,0,1,0,0,1,1,0,1],[1,0,1,0,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,1,0,1],[1,0,1,0,1,1,1,0,1,0,1,1,1,1,0,1,0,1,1,1,0,1,0,1],[1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1],[1,1,1,0,1,0,1,1,0,1,1,0,0,1,1,0,1,1,0,1,0,1,1,1],[1,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,1],[1,0,0,0,1,0,1,0,0,1,0,1,1,0,1,0,0,1,0,1,0,0,0,1],[1,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,1],[1,1,1,0,1,0,1,1,0,1,1,0,0,1,1,0,1,1,0,1,0,1,1,1],[1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1],[1,0,1,0,1,1,1,0,1,0,1,1,1,1,0,1,0,1,1,1,0,1,0,1],[1,0,1,0,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,1,0,1],[1,0,1,1,0,0,1,0,1,1,1,0,0,1,1,1,0,1,0,0,1,1,0,1],[1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1],[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]]},
+
+ {name:'HELLFIRE',        desc:'Lava fortress — heat warps the air itself',      col:'#3a0a04',
+  w0:[148,46,28],w1:[108,30,18],   shd:2.5,wr:42,wg:8,
+  ct:'#0a0000',cb:'#1e0404',ft:'#180800',fb:'#080200',
+  tc:'rgba(255,80,20,0.18)',tc2:'rgba(200,40,0,0.07)',tR:580,va:.70,sx:3.5,sy:8.5,
+  map:[[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1],[1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,0,0,0,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1],[1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]]},
+
+ {name:'FROZEN TEMPLE',   desc:'Ice-sealed halls whisper with cold silence',     col:'#0c1e30',
+  w0:[100,148,192],w1:[70,112,158],shd:3.5,wr:4,wg:14,
+  ct:'#050a12',cb:'#0a1824',ft:'#0e1828',fb:'#050a14',
+  tc:'rgba(100,210,255,0.09)',tc2:'rgba(50,150,220,0.03)',tR:600,va:.65,sx:3.5,sy:8.5,
+  map:[[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],[1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1],[1,0,1,1,0,1,0,1,1,0,0,0,0,0,0,1,1,0,1,0,1,1,0,1],[1,0,1,0,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,1,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,1,1,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,1,1,1],[1,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,1],[1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1],[1,0,1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1,0,1],[1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1],[1,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,1],[1,1,1,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,1,1,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,0,1,0,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,1,0,1],[1,0,1,1,0,1,0,1,1,0,0,0,0,0,0,1,1,0,1,0,1,1,0,1],[1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1],[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]]},
+
+ {name:'DESERT TOMB',     desc:'Sandstone pillars guard the sleeping dead',      col:'#2e1e06',
+  w0:[182,148,92],w1:[142,112,66], shd:2.8,wr:24,wg:20,
+  ct:'#0d0a03',cb:'#1a1406',ft:'#16100a',fb:'#0a0702',
+  tc:'rgba(255,200,80,0.14)',tc2:'rgba(220,150,40,0.05)',tR:500,va:.72,sx:3.5,sy:8.5,
+  map:[[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,0,1,0,0,1,0,0,1,0,0,1,1,0,0,1,0,0,1,0,0,1,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,0,1,0,0,1,0,0,1,0,0,1,1,0,0,1,0,0,1,0,0,1,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,0,1,0,0,1,0,0,1,0,0,0,0,0,0,1,0,0,1,0,0,1,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,0,1,0,0,1,0,0,1,0,0,0,0,0,0,1,0,0,1,0,0,1,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,0,1,0,0,1,0,0,1,0,0,0,0,0,0,1,0,0,1,0,0,1,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,0,1,0,0,1,0,0,1,0,0,1,1,0,0,1,0,0,1,0,0,1,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,0,1,0,0,1,0,0,1,0,0,1,1,0,0,1,0,0,1,0,0,1,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]]},
+
+ {name:'CURSED FOREST',   desc:'Ancient trees twisted into walls of darkness',   col:'#0a1a08',
+  w0:[60,92,42],w1:[42,66,28],     shd:1.7,wr:4,wg:22,
+  ct:'#020602',cb:'#040c04',ft:'#030501',fb:'#010201',
+  tc:'rgba(50,210,70,0.10)',tc2:'rgba(20,140,30,0.04)',tR:550,va:.88,sx:3.5,sy:8.5,
+  map:[[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],[1,0,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,0,0,0,1],[1,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,1],[1,0,0,0,0,1,0,0,0,0,1,0,0,1,0,0,0,0,1,0,0,0,0,1],[1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1],[1,0,0,0,1,0,0,1,1,0,0,0,0,0,1,1,0,0,1,0,0,0,0,1],[1,0,0,0,0,0,1,0,0,0,0,1,1,0,0,0,0,1,0,0,0,0,0,1],[1,0,1,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,1,0,0,1],[1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1],[1,0,1,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,1],[1,0,0,0,1,0,0,0,0,1,0,1,1,0,1,0,0,0,0,1,0,0,0,1],[1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1],[1,0,1,0,0,1,0,0,1,1,0,0,0,0,1,1,0,0,1,0,0,1,0,1],[1,0,0,0,1,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1,0,0,0,1],[1,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,1],[1,0,0,0,0,0,1,0,0,0,1,0,0,1,0,0,0,1,0,0,0,0,0,1],[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]]},
+
+ {name:'CRYSTAL CAVES',   desc:'Purple crystals pulse with an alien heartbeat', col:'#180a2e',
+  w0:[80,62,148],w1:[55,42,112],   shd:2.0,wr:14,wg:4,
+  ct:'#050310',cb:'#0a0620',ft:'#080412',fb:'#040208',
+  tc:'rgba(130,70,255,0.14)',tc2:'rgba(80,30,200,0.05)',tR:480,va:.82,sx:3.5,sy:8.5,
+  map:[[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],[1,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1],[1,0,1,1,0,0,0,1,0,0,0,1,1,0,0,0,1,0,0,0,1,1,0,1],[1,0,1,0,0,0,0,0,0,0,1,1,0,1,0,0,0,0,0,0,1,0,0,1],[1,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,1],[1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1],[1,1,0,0,0,1,1,0,0,0,1,0,0,1,0,0,0,1,1,0,0,0,1,1],[1,0,0,1,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,1,0,0,1],[1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,1],[1,0,0,1,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,1,0,0,1],[1,1,0,0,0,1,1,0,0,0,1,0,0,1,0,0,0,1,1,0,0,0,1,1],[1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1],[1,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1,0,0,0,1],[1,0,1,0,0,0,0,0,0,0,1,1,0,1,0,0,0,0,0,0,1,0,0,1],[1,0,1,1,0,0,0,1,0,0,0,1,1,0,0,0,1,0,0,0,1,1,0,1],[1,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1,1,0,0,0,0,0,0,1],[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]]},
+
+ {name:'DEAD FACTORY',    desc:'Industrial decay — machines still grind inside', col:'#0e1810',
+  w0:[72,88,68],w1:[52,64,50],     shd:2.4,wr:4,wg:22,
+  ct:'#030604',cb:'#070c05',ft:'#060a06',fb:'#020402',
+  tc:'rgba(60,255,60,0.08)',tc2:'rgba(30,180,30,0.03)',tR:480,va:.78,sx:3.5,sy:8.5,
+  map:[[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,0,1,1,1,1,0,1,1,1,1,0,0,1,1,1,1,0,1,1,1,1,0,1],[1,0,1,0,0,1,0,1,0,0,1,0,0,1,0,0,1,0,1,0,0,1,0,1],[1,0,1,0,0,1,0,1,0,0,1,0,0,1,0,0,1,0,1,0,0,1,0,1],[1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1],[1,0,1,0,0,1,0,0,0,0,1,0,0,1,0,0,0,0,1,0,0,1,0,1],[1,0,1,0,0,1,0,0,0,0,1,0,0,1,0,0,0,0,1,0,0,1,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,0,1,0,0,1,0,0,0,0,1,0,0,1,0,0,0,0,1,0,0,1,0,1],[1,0,1,0,0,1,0,0,0,0,1,0,0,1,0,0,0,0,1,0,0,1,0,1],[1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1],[1,0,1,0,0,1,0,1,0,0,1,0,0,1,0,0,1,0,1,0,0,1,0,1],[1,0,1,0,0,1,0,1,0,0,1,0,0,1,0,0,1,0,1,0,0,1,0,1],[1,0,1,1,1,1,0,1,1,1,1,0,0,1,1,1,1,0,1,1,1,1,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]]},
+
+ {name:'VOID TEMPLE',     desc:'Reality collapses — only hunger remains',        col:'#0a0414',
+  w0:[46,32,72],w1:[30,20,54],     shd:1.5,wr:12,wg:0,
+  ct:'#030008',cb:'#07001a',ft:'#060016',fb:'#020008',
+  tc:'rgba(150,0,255,0.14)',tc2:'rgba(80,0,180,0.06)',tR:560,va:.90,sx:3.5,sy:8.5,
+  map:[[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],[1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1],[1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1],[1,1,1,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,1,1,1,1],[1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1],[1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1],[1,1,1,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,1,1,1,1],[1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1],[1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1],[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]]},
+
+ {name:'BLOOD ARENA',     desc:'The crowd demands blood — you are the last one', col:'#2a0404',
+  w0:[112,18,18],w1:[82,10,10],    shd:2.0,wr:38,wg:4,
+  ct:'#090000',cb:'#160000',ft:'#110000',fb:'#070000',
+  tc:'rgba(255,30,30,0.18)',tc2:'rgba(180,0,0,0.07)',tR:560,va:.74,sx:3.5,sy:8.5,
+  map:[[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],[1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1],[1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1],[1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],[1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1],[1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1],[1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1],[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]]},
+];
+
+function solid(x, y) {
+  const mx = Math.floor(x), my = Math.floor(y);
+  if (mx < 0 || mx >= MAP_W || my < 0 || my >= MAP_H) return true;
+  return MAP[my][mx] !== 0;
+}
+
+const SWORD_NAMES  = ['Dagger','Short Sword','Longsword','Greatsword','Claymore'];
+const SWORD_COLORS = ['#c8c8d8','#88aaff','#66ffaa','#ffaa44','#ff6644'];
+const SWORD_REACH  = [1.3, 1.5, 1.7, 1.9, 2.1];
+const SWORD_ARC    = [0.65, 0.75, 0.85, 0.95, 1.05];
+
+// ── Setup ──────────────────────────────────────────────────────────────────
+const canvas = document.getElementById('c');
+canvas.width = CW; canvas.height = CH;
+const ctx = canvas.getContext('2d');
+const zBuf = new Float64Array(NR);
+
+// ── Audio ──────────────────────────────────────────────────────────────────
+let audioCtx = null;
+let musicNode = null, musicGain = null;
+let ambientNode = null, ambientGain = null;
+let danceNodes = [];
+
+function getAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+function playSound(freq, type, dur, vol=0.18, detune=0) {
+  try {
+    const ac = getAudio();
+    const osc = ac.createOscillator();
+    const g = ac.createGain();
+    osc.connect(g); g.connect(ac.destination);
+    osc.type = type; osc.frequency.value = freq; osc.detune.value = detune;
+    const t = ac.currentTime;
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    osc.start(t); osc.stop(t + dur);
+  } catch(e) {}
+}
+
+function playSwing(lvl) {
+  try {
+    const ac = getAudio();
+    const buf = ac.createBuffer(1, ac.sampleRate * 0.18, ac.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i=0;i<d.length;i++) {
+      const t=i/ac.sampleRate, env=Math.exp(-t*14);
+      d[i] = (Math.random()*2-1)*env*0.4 + Math.sin(2*Math.PI*(220+lvl*80)*t)*env*0.5;
+    }
+    const src = ac.createBufferSource();
+    const g = ac.createGain(); g.gain.value = 0.22+lvl*0.04;
+    src.buffer = buf; src.connect(g); g.connect(ac.destination);
+    src.start();
+    // High metallic ring
+    playSound(880+lvl*200, 'sine', 0.22, 0.09+lvl*0.02, lvl*15);
+  } catch(e) {}
+}
+
+function playHit() {
+  try {
+    const ac = getAudio();
+    const buf = ac.createBuffer(1, ac.sampleRate * 0.12, ac.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i=0;i<d.length;i++) {
+      const t=i/ac.sampleRate;
+      d[i] = (Math.random()*2-1)*Math.exp(-t*22)*0.55;
+    }
+    const src = ac.createBufferSource();
+    const g = ac.createGain(); g.gain.value = 0.28;
+    src.buffer = buf; src.connect(g); g.connect(ac.destination); src.start();
+    playSound(180, 'sawtooth', 0.08, 0.12);
+  } catch(e) {}
+}
+
+function playDie() {
+  try {
+    const ac = getAudio();
+    // Descending moan
+    const osc = ac.createOscillator();
+    const g = ac.createGain();
+    osc.connect(g); g.connect(ac.destination);
+    osc.type='sawtooth'; osc.frequency.value=280;
+    const t = ac.currentTime;
+    osc.frequency.exponentialRampToValueAtTime(60, t+0.35);
+    g.gain.setValueAtTime(0.14, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t+0.4);
+    osc.start(t); osc.stop(t+0.4);
+    // Crack
+    const buf = ac.createBuffer(1, Math.floor(ac.sampleRate*0.06),ac.sampleRate);
+    const d=buf.getChannelData(0);
+    for (let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.exp(-i/d.length*18)*0.5;
+    const src=ac.createBufferSource(); const g2=ac.createGain(); g2.gain.value=0.2;
+    src.buffer=buf; src.connect(g2); g2.connect(ac.destination); src.start();
+  } catch(e) {}
+}
+
+function playDamage() {
+  playSound(160, 'sawtooth', 0.15, 0.2);
+  playSound(100, 'square',   0.12, 0.12, -50);
+}
+
+function playGrail() {
+  try {
+    const ac = getAudio();
+    const chords = [523,659,784,1047];
+    chords.forEach((f,i) => {
+      const osc=ac.createOscillator(), g=ac.createGain();
+      osc.connect(g); g.connect(ac.destination);
+      osc.type='sine'; osc.frequency.value=f;
+      const t=ac.currentTime+i*0.12;
+      g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(0.15,t+0.05);
+      g.gain.exponentialRampToValueAtTime(0.001,t+0.8);
+      osc.start(t); osc.stop(t+0.85);
+    });
+  } catch(e) {}
+}
+
+function playLevelUp() {
+  const fanfare = [523,659,784,1047,784,1047,1319];
+  fanfare.forEach((f,i) => playSound(f,'sine',0.25,0.14,0));
+}
+
+// ── Background music (ambient drone + rhythm) ─────────────────────────────
+function startMusic() {
+  try {
+    stopMusic();
+    const ac = getAudio();
+    const master = ac.createGain(); master.gain.value = 0.0;
+    master.connect(ac.destination);
+    master.gain.linearRampToValueAtTime(0.55, ac.currentTime + 2);
+    musicGain = master;
+
+    // Ominous drone — two detuned oscillators
+    const makeOsc = (f, type, det, vol) => {
+      const o=ac.createOscillator(), g=ac.createGain();
+      g.gain.value=vol; o.type=type; o.frequency.value=f; o.detune.value=det;
+      o.connect(g); g.connect(master); o.start(); return {o,g};
+    };
+    const oscs = [
+      makeOsc(55,  'sawtooth',  0,   0.18),
+      makeOsc(55,  'sawtooth',  8,   0.12),
+      makeOsc(110, 'square',    0,   0.07),
+      makeOsc(27.5,'sine',      0,   0.25),
+    ];
+
+    // Pulsing low beat with ScriptProcessor-free approach using gain modulation
+    const lfo = ac.createOscillator();
+    const lfoGain = ac.createGain(); lfoGain.gain.value = 0.06;
+    lfo.frequency.value = 1.8; lfo.type = 'sine';
+    lfo.connect(lfoGain); lfoGain.connect(master.gain);
+    lfo.start();
+
+    musicNode = { oscs, lfo, lfoGain };
+  } catch(e) {}
+}
+
+function stopMusic() {
+  try {
+    if (musicNode) {
+      musicNode.oscs.forEach(({o}) => { try{o.stop();}catch(e){} });
+      try{musicNode.lfo.stop();}catch(e){}
+      musicNode = null;
+    }
+    if (musicGain) { musicGain.disconnect(); musicGain = null; }
+  } catch(e) {}
+}
+
+// ── Dance music (upbeat disco-ish synth) ─────────────────────────────────
+let danceIntervalId = null;
+function startDanceMusic() {
+  try {
+    stopDanceMusic();
+    const ac = getAudio();
+    const master = ac.createGain(); master.gain.value = 0; master.connect(ac.destination);
+    master.gain.linearRampToValueAtTime(0.7, ac.currentTime+0.3);
+
+    // Bass line: C minor disco pattern
+    const bassNotes = [65.4, 73.4, 82.4, 87.3, 98, 110, 87.3, 82.4];
+    let beat = 0;
+    const bpm = 128;
+    const beatLen = 60/bpm;
+
+    function scheduleBeat() {
+      if (!danceIntervalId) return;
+      const ac2 = getAudio();
+      const t = ac2.currentTime;
+
+      // Bass hit
+      const bass = ac2.createOscillator();
+      const bassGain = ac2.createGain();
+      bass.type='square'; bass.frequency.value=bassNotes[beat%bassNotes.length];
+      bassGain.gain.setValueAtTime(0.35, t);
+      bassGain.gain.exponentialRampToValueAtTime(0.001, t+beatLen*0.6);
+      bass.connect(bassGain); bassGain.connect(master); bass.start(t); bass.stop(t+beatLen*0.65);
+
+      // Hi-hat on every beat
+      const buf=ac2.createBuffer(1,Math.floor(ac2.sampleRate*0.06),ac2.sampleRate);
+      const d=buf.getChannelData(0);
+      for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.exp(-i/d.length*30)*0.3;
+      const hat=ac2.createBufferSource(), hg=ac2.createGain(); hg.gain.value=0.15;
+      hat.buffer=buf; hat.connect(hg); hg.connect(master); hat.start(t);
+
+      // Snare on beats 2&4
+      if (beat%4===1||beat%4===3) {
+        const sbuf=ac2.createBuffer(1,Math.floor(ac2.sampleRate*0.12),ac2.sampleRate);
+        const sd=sbuf.getChannelData(0);
+        for(let i=0;i<sd.length;i++) sd[i]=(Math.random()*2-1)*Math.exp(-i/sd.length*16)*0.6;
+        const sn=ac2.createBufferSource(), sg=ac2.createGain(); sg.gain.value=0.22;
+        sn.buffer=sbuf; sn.connect(sg); sg.connect(master); sn.start(t);
+      }
+
+      beat++;
+      danceIntervalId = setTimeout(scheduleBeat, beatLen*1000);
+    }
+
+    danceIntervalId = setTimeout(scheduleBeat, 0);
+    danceNodes = [master];
+  } catch(e) {}
+}
+
+function stopDanceMusic() {
+  try {
+    if (danceIntervalId) { clearTimeout(danceIntervalId); danceIntervalId = null; }
+    danceNodes.forEach(n => { try{n.disconnect();}catch(e){} });
+    danceNodes = [];
+  } catch(e) {}
+}
+
+// ── State ──────────────────────────────────────────────────────────────────
+let gs, pl, sw, zombies, particles, grail;
+let MAP = WORLDS[0].map, worldCfg = WORLDS[0], selectedWorld = 0;
+let zId = 0, spawnT = 0, blinkT = 0, lastTs = 0, gameTime = 0;
+const keys = {};
+const arrow = { up:false, down:false, left:false, right:false };
+let locked = false;
+let morning = false;
+let showHelp = false;
+
+function na(a) { return ((a % (Math.PI*2)) + Math.PI*2) % (Math.PI*2); }
+function ease(t) { return t < .5 ? 2*t*t : -1+(4-2*t)*t; }
+
+// ── Init ───────────────────────────────────────────────────────────────────
+function init(wIdx) {
+  selectedWorld = wIdx ?? selectedWorld;
+  MAP = WORLDS[selectedWorld].map;
+  worldCfg = WORLDS[selectedWorld];
+  gs = { phase:'playing', kills:0, swordLevel:0, level:1,
+         shake:0, shakeAmt:0, warnText:'', warnTimer:0, flash:0, goldenFlash:0, paused:false, danceTimer:0 };
+  grail = null;
+  pl = { x:worldCfg.sx, y:worldCfg.sy, angle:0,
+         hp:100, maxHp:100, iTimer:0,
+         bobPhase:0, bobY:0, moving:false };
+  sw = { on:false, t:0, dur:220, hits:new Set() };
+  zombies = []; particles = [];
+  spawnT = 80; zId = 0;
+}
+
+// ── Spawn ──────────────────────────────────────────────────────────────────
+function spawnInterval() {
+  const k = gs.kills;
+  return k<10?120 : k<20?90 : k<30?70 : k<50?55 : 40;
+}
+
+function spawnZombie() {
+  const pool = [];
+  for (let my = 1; my < MAP_H-1; my++)
+    for (let mx = 1; mx < MAP_W-1; mx++)
+      if (!MAP[my][mx]) {
+        const cx = mx+.5, cy = my+.5;
+        const d2 = (cx-pl.x)**2 + (cy-pl.y)**2;
+        if (d2 > 36) pool.push({x:cx, y:cy});
+      }
+  if (!pool.length) return;
+  const p = pool[Math.floor(Math.random()*pool.length)];
+  const spd = Math.min(.013 + Math.floor(gs.kills/5)*.0013, .036);
+  const hp = Math.max(1, gs.level);
+  zombies.push({ id:zId++, x:p.x, y:p.y, r:.35, spd,
+                 wp: Math.random()*Math.PI*2, health:hp, maxHealth:hp, hitFlash:0 });
+}
+
+// ── Update ─────────────────────────────────────────────────────────────────
+function update(dt) {
+  const df = dt / 16.667;
+  const ms = .056 * df;
+  const rs = .033 * df;
+
+  // Movement — arrow uses dedicated state; A/D behaviour depends on lock
+  let mov = false;
+  const fwd  = keys.KeyW || arrow.up;
+  const bck  = keys.KeyS || arrow.down;
+  const rotL = arrow.left  || (keys.KeyA && !locked);
+  const rotR = arrow.right || (keys.KeyD && !locked);
+  const strL = (keys.KeyA || keys.KeyQ) && locked;
+  const strR = (keys.KeyD || keys.KeyE) && locked;
+
+  if (fwd) { tryMove(Math.cos(pl.angle)*ms, Math.sin(pl.angle)*ms); mov=true; }
+  if (bck) { tryMove(-Math.cos(pl.angle)*ms, -Math.sin(pl.angle)*ms); mov=true; }
+  if (rotL) pl.angle -= rs;
+  if (rotR) pl.angle += rs;
+  if (strL) { tryMove(Math.cos(pl.angle-Math.PI/2)*ms, Math.sin(pl.angle-Math.PI/2)*ms); mov=true; }
+  if (strR) { tryMove(Math.cos(pl.angle+Math.PI/2)*ms, Math.sin(pl.angle+Math.PI/2)*ms); mov=true; }
+
+  pl.moving = mov;
+  if (mov) pl.bobPhase += df*.15;
+  pl.bobY = mov ? Math.sin(pl.bobPhase)*9 : pl.bobY*.86;
+
+  if (pl.iTimer > 0) pl.iTimer -= df;
+
+  // Sword
+  if (sw.on) {
+    sw.t += dt / sw.dur;
+    if (sw.t >= 1) { sw.t = 1; sw.on = false; }
+    hitCheck();
+  }
+
+  // Zombies
+  const maxZ = Math.min(8 + Math.floor(gs.kills/8), 32);
+  spawnT -= df;
+  if (spawnT <= 0 && zombies.length < maxZ) { spawnZombie(); spawnT = spawnInterval(); }
+
+  for (let i = zombies.length-1; i >= 0; i--) {
+    const z = zombies[i];
+    let dx = pl.x-z.x, dy = pl.y-z.y;
+    const d = Math.sqrt(dx*dx+dy*dy)||1;
+    dx /= d; dy /= d;
+    dx += (Math.random()-.5)*.14; dy += (Math.random()-.5)*.14;
+    const dl = Math.sqrt(dx*dx+dy*dy)||1;
+    dx /= dl; dy /= dl;
+
+    for (const o of zombies) {
+      if (o.id === z.id) continue;
+      const sd = Math.sqrt((z.x-o.x)**2+(z.y-o.y)**2);
+      if (sd < .8 && sd > 0) { dx += (z.x-o.x)/sd*.3; dy += (z.y-o.y)/sd*.3; }
+    }
+
+    if (z.hitFlash > 0) z.hitFlash -= df;
+    if (gs.danceTimer > 0) {
+      z.wp = gameTime*0.012 + z.id*0.7;
+      const dp = gameTime*0.003 + z.id*0.6;
+      const sx = Math.cos(dp*2.5)*0.016*df, sy = Math.sin(dp*1.8)*0.012*df;
+      if (!solid(z.x+sx,z.y)) z.x+=sx;
+      if (!solid(z.x,z.y+sy)) z.y+=sy;
+    } else {
+      z.wp += df*.006*(z.spd/.013);
+      const nx = z.x+dx*z.spd*df, ny = z.y+dy*z.spd*df;
+      if (!solid(nx,z.y)) z.x=nx;
+      if (!solid(z.x,ny)) z.y=ny;
+      const pd = Math.sqrt((z.x-pl.x)**2+(z.y-pl.y)**2);
+      if (pl.iTimer<=0 && pd<z.r+.28) {
+        pl.hp-=10; pl.iTimer=60; playDamage();
+        if (pl.hp<=0) { pl.hp=0; gs.phase='gameover'; stopMusic(); stopDanceMusic(); saveScore(); return; }
+      }
+    }
+  }
+
+  // Particles
+  for (let i = particles.length-1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx*df; p.y += p.vy*df; p.vy += .15*df;
+    p.life -= p.dec*df;
+    if (p.life <= 0) particles.splice(i,1);
+  }
+  if (particles.length > 400) particles.splice(0, particles.length-400);
+
+  // Grail animation + pickup
+  if (grail) {
+    grail.bobPhase  += df * 0.045;
+    grail.glowPhase += df * 0.06;
+    const gd = Math.sqrt((pl.x-grail.x)**2 + (pl.y-grail.y)**2);
+    if (gd < 0.65) collectGrail();
+  }
+
+  if (gs.shake > 0) gs.shake -= df;
+  if (gs.warnTimer > 0) gs.warnTimer -= df;
+  if (gs.flash > 0) gs.flash -= df;
+  if (gs.goldenFlash > 0) gs.goldenFlash -= df;
+  if (gs.danceTimer > 0) { gs.danceTimer -= dt; if (gs.danceTimer <= 0) stopDanceMusic(); }
+}
+
+function tryMove(dx, dy) {
+  const nx = pl.x+dx, ny = pl.y+dy;
+  if (!solid(nx, pl.y)) pl.x = nx;
+  if (!solid(pl.x, ny)) pl.y = ny;
+}
+
+function hitCheck() {
+  const lvl = gs.swordLevel;
+  const reach = SWORD_REACH[lvl], ha = SWORD_ARC[lvl];
+  for (let i = zombies.length-1; i >= 0; i--) {
+    const z = zombies[i];
+    if (sw.hits.has(z.id)) continue;
+    const dx = z.x-pl.x, dy = z.y-pl.y;
+    if (dx*dx+dy*dy > reach*reach) continue;
+    const diff = na(Math.atan2(dy,dx) - pl.angle);
+    if (diff <= ha || diff >= Math.PI*2-ha) {
+      sw.hits.add(z.id);
+      z.health--;
+      z.hitFlash = 12;
+      playHit();
+      gs.shake = Math.max(gs.shake, 5); gs.shakeAmt = Math.max(gs.shakeAmt, 3);
+      if (z.health <= 0) kill(i, z);
+    }
+  }
+}
+
+function kill(idx, z) {
+  blood(z);
+  zombies.splice(idx, 1);
+  playDie();
+  const prev = gs.kills++;
+  milestones(prev, gs.kills);
+}
+
+function blood(z) {
+  const dx = z.x-pl.x, dy = z.y-pl.y;
+  const ra = na(Math.atan2(dy,dx) - pl.angle);
+  const a = ra > Math.PI ? ra - Math.PI*2 : ra;
+  const sx = CW/2 + (a/HALF_FOV)*(CW/2);
+  for (let i = 0; i < 22; i++) {
+    particles.push({ x: sx+(Math.random()-.5)*50, y: CH/2+(Math.random()-.5)*50,
+      vx:(Math.random()-.5)*5, vy:(Math.random()-.8)*6,
+      life:1, dec:.022+Math.random()*.02,
+      r: 2+Math.random()*4, col: Math.random()<.7?'#8b0000':'#cc2200' });
+  }
+}
+
+function milestones(prev, now) {
+  // Spawn golden grail every 10 kills (if none active)
+  if (Math.floor(now/10) > Math.floor(prev/10) && !grail) {
+    spawnGrail();
+  }
+
+  // Sword level up (up to level 4 / 40 kills)
+  const nl = Math.min(Math.floor(now/10), 4);
+  if (nl > gs.swordLevel) {
+    gs.swordLevel = nl;
+    gs.warnText = SWORD_NAMES[nl].toUpperCase()+'!';
+    gs.warnTimer = 130; gs.flash = 8;
+    gs.shake = 20; gs.shakeAmt = 8;
+    playLevelUp();
+    return;
+  }
+
+  // Speed increase every 5 kills
+  if (Math.floor(now/5) > Math.floor(prev/5)) {
+    gs.warnText = 'FASTER!'; gs.warnTimer = 90;
+    gs.shake = 10; gs.shakeAmt = 4;
+  }
+
+  // Grail hint (when grail just spawned and no other warning active)
+  if (Math.floor(now/10) > Math.floor(prev/10) && gs.warnTimer < 20) {
+    gs.warnText = '✦ FIND THE GRAIL!'; gs.warnTimer = 130;
+  }
+}
+
+function spawnGrail() {
+  const pool = [];
+  for (let my = 1; my < MAP_H-1; my++)
+    for (let mx = 1; mx < MAP_W-1; mx++)
+      if (!MAP[my][mx]) {
+        const cx = mx+.5, cy = my+.5;
+        if ((cx-pl.x)**2+(cy-pl.y)**2 > 25) pool.push({x:cx, y:cy});
+      }
+  if (!pool.length) return;
+  const pos = pool[Math.floor(Math.random()*pool.length)];
+  grail = { x:pos.x, y:pos.y, bobPhase:0, glowPhase:0 };
+}
+
+function collectGrail() {
+  grail = null;
+  gs.level++;
+  pl.maxHp = Math.min(pl.maxHp + 25, 250);
+  pl.hp    = pl.maxHp;
+  gs.warnText    = `LEVEL ${gs.level}  ✦  ZOMBIE DANCE!`;
+  gs.warnTimer   = 240;
+  gs.goldenFlash = 14;
+  gs.danceTimer  = 5200;
+  gs.shake = 28; gs.shakeAmt = 10;
+  playGrail();
+  startDanceMusic();
+  // Golden ring particles at screen center
+  for (let i = 0; i < 30; i++) {
+    const ang = (i/30)*Math.PI*2, spd = 3+Math.random()*4;
+    particles.push({ x:CW/2, y:CH/2,
+      vx:Math.cos(ang)*spd, vy:Math.sin(ang)*spd,
+      life:1, dec:.018+Math.random()*.012,
+      r:3+Math.random()*3, col:Math.random()<.6?'#ffd700':'#ffee88' });
+  }
+}
+
+// ── Raycaster ──────────────────────────────────────────────────────────────
+function castRays() {
+  const pa = pl.angle;
+  const dirX = Math.cos(pa), dirY = Math.sin(pa);
+  const plX = -Math.sin(pa)*.66, plY = Math.cos(pa)*.66;
+  const midY = CH/2 + pl.bobY;
+
+  for (let col = 0; col < NR; col++) {
+    const camX = 2*col/NR - 1;
+    const rdx = dirX + plX*camX, rdy = dirY + plY*camX;
+
+    let mx = Math.floor(pl.x), my = Math.floor(pl.y);
+    const ddx = Math.abs(rdx) < 1e-10 ? 1e30 : Math.abs(1/rdx);
+    const ddy = Math.abs(rdy) < 1e-10 ? 1e30 : Math.abs(1/rdy);
+
+    let sdx, sdy, stx, sty;
+    if (rdx < 0) { stx=-1; sdx=(pl.x-mx)*ddx; } else { stx=1; sdx=(mx+1-pl.x)*ddx; }
+    if (rdy < 0) { sty=-1; sdy=(pl.y-my)*ddy; } else { sty=1; sdy=(my+1-pl.y)*ddy; }
+
+    let side=0, hit=false, depth=0;
+    while (!hit && depth++ < MAX_D) {
+      if (sdx < sdy) { sdx+=ddx; mx+=stx; side=0; }
+      else           { sdy+=ddy; my+=sty; side=1; }
+      if (mx>=0&&mx<MAP_W&&my>=0&&my<MAP_H&&MAP[my][mx]) hit=true;
+    }
+
+    const pd = Math.max(hit ? (side===0 ? sdx-ddx : sdy-ddy) : MAX_D, .01);
+    zBuf[col] = pd;
+
+    const lh = Math.floor(CH/pd);
+    const top = Math.max(0, Math.floor(midY - lh/2));
+    const bot = Math.min(CH-1, Math.floor(midY + lh/2));
+
+    // Stone wall shading
+    let r, g, b;
+    if (morning) {
+      // Bright daylight: well-lit stone with cool sky reflection
+      const shade = Math.min(1, 4.5/(pd+.3));
+      r = Math.floor((side===0?185:145)*shade);
+      g = Math.floor((side===0?175:138)*shade);
+      b = Math.floor((side===0?160:128)*shade);
+      // Subtle warm sunlight from above (brighten top of walls)
+      r = Math.min(255, r + 18); g = Math.min(255, g + 14);
+    } else {
+      const shade = Math.min(1, worldCfg.shd/(pd+.4));
+      r = Math.floor((side===0?worldCfg.w0[0]:worldCfg.w1[0])*shade);
+      g = Math.floor((side===0?worldCfg.w0[1]:worldCfg.w1[1])*shade);
+      b = Math.floor((side===0?worldCfg.w0[2]:worldCfg.w1[2])*shade);
+      const cf = 1 - Math.abs(camX)*.5;
+      r = Math.min(255, r + Math.floor(cf*worldCfg.wr));
+      g = Math.min(255, g + Math.floor(cf*worldCfg.wg));
+    }
+
+    ctx.fillStyle = `rgb(${r},${g},${b})`;
+    ctx.fillRect(col*STRIP, top, STRIP, bot-top);
+  }
+}
+
+// ── Sprites ────────────────────────────────────────────────────────────────
+function drawSprites() {
+  const pa = pl.angle;
+  const dirX = Math.cos(pa), dirY = Math.sin(pa);
+  const plX = -Math.sin(pa)*.66, plY = Math.cos(pa)*.66;
+  const inv = 1/(plX*dirY - dirX*plY);
+  const midY = CH/2 + pl.bobY;
+
+  const sorted = [...zombies].sort((a,b) =>
+    ((b.x-pl.x)**2+(b.y-pl.y)**2) - ((a.x-pl.x)**2+(a.y-pl.y)**2));
+
+  for (const z of sorted) {
+    const rx = z.x-pl.x, ry = z.y-pl.y;
+    const tX = inv*(dirY*rx - dirX*ry);
+    const tY = inv*(-plY*rx + plX*ry);
+    if (tY <= .15) continue;
+
+    const sx = Math.floor(CW/2*(1+tX/tY));
+    const sh = Math.abs(Math.floor(CH/tY));
+    const left = sx - sh/2, right = sx + sh/2;
+    const cL = Math.max(0, Math.floor(left));
+    const cR = Math.min(CW, Math.ceil(right));
+
+    const clip = new Path2D();
+    let vis = false;
+    for (let cx = cL; cx < cR; cx++) {
+      if (tY < zBuf[Math.floor(cx/STRIP)]) { clip.rect(cx,0,1,CH); vis=true; }
+    }
+    if (!vis) continue;
+
+    const top = Math.floor(midY - sh*.55);
+    const bot = Math.floor(midY + sh*.45);
+    const fade = Math.min(1, 2.8/tY);
+
+    ctx.save();
+    ctx.clip(clip);
+    ctx.translate(sx, (top+bot)/2);
+    const sc = sh/110;
+    ctx.scale(sc, sc);
+    const dancing = gs.danceTimer > 0;
+    const dancePhase = gameTime * 0.004 + z.id * 0.85;
+    const bodyBounce = dancing ? Math.abs(Math.sin(dancePhase * 3.5)) * 8 : 0;
+    ctx.translate(Math.sin(z.wp)*5, -bodyBounce);
+    ctx.globalAlpha = fade;
+
+    // Per-zombie skin/cloth variants with lit/dark tones for 3D shading
+    const skinLit  = ['#b4cc90','#a8c288','#bccca0','#a8be8e'][z.id%4];
+    const skinBase = ['#8aaa70','#7e9e66','#94aa7a','#82a06c'][z.id%4];
+    const skinDark = ['#445030','#3c4a28','#4a5834','#405030'][z.id%4];
+    const cloth    = z.id%2===0 ? '#2e2218' : '#22222e';
+    const clothLit = z.id%2===0 ? '#4e3e2e' : '#3c3c50';
+    const step = Math.sin(z.wp) * (dancing ? 22 : 5);
+
+    // Ground shadow blob
+    ctx.save();
+    ctx.globalAlpha = fade * 0.3;
+    const gshG = ctx.createRadialGradient(step*.4,60,0,step*.4,60,24);
+    gshG.addColorStop(0,'rgba(0,0,0,0.8)'); gshG.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=gshG; ctx.beginPath(); ctx.ellipse(step*.4,60,24,7,0,0,Math.PI*2); ctx.fill();
+    ctx.restore(); ctx.globalAlpha=fade;
+
+    // === LEGS ===
+    // Back leg (lighter = farther, more lit)
+    ctx.strokeStyle=clothLit; ctx.lineWidth=11; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(7,22); ctx.lineTo(9+step,50); ctx.stroke();
+    // Front leg
+    ctx.strokeStyle=cloth; ctx.lineWidth=12;
+    ctx.beginPath(); ctx.moveTo(-7,22); ctx.lineTo(-9-step,50); ctx.stroke();
+    // Front leg lit edge
+    ctx.strokeStyle=clothLit; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.moveTo(-10,23); ctx.lineTo(-12-step,49); ctx.stroke();
+    // Boots
+    ctx.strokeStyle='#100806'; ctx.lineWidth=9; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(-9-step,50); ctx.lineTo(-18-step,58); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(9+step,50);  ctx.lineTo(18+step,58);  ctx.stroke();
+    ctx.strokeStyle='#30180a'; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.moveTo(-11-step,50); ctx.lineTo(-17-step,56); ctx.stroke();
+
+    // === TORSO ===
+    // Cylindrical torso — radial gradient simulates rounded cloth
+    const torsoG=ctx.createRadialGradient(-5,-8,3,1,2,22);
+    torsoG.addColorStop(0,clothLit); torsoG.addColorStop(.55,cloth); torsoG.addColorStop(1,'#0e0e18');
+    ctx.fillStyle=torsoG;
+    ctx.beginPath(); ctx.ellipse(0,2,16,24,0,0,Math.PI*2); ctx.fill();
+    // Rim light (right-side backlit edge)
+    ctx.strokeStyle='rgba(80,100,140,0.2)'; ctx.lineWidth=4;
+    ctx.beginPath(); ctx.ellipse(8,3,9,21,0.15,Math.PI*.25,Math.PI*1.15); ctx.stroke();
+    // Torn skin patches — radial gradient for roundness
+    const sp1=ctx.createRadialGradient(-5,-5,1,-4,-4,9);
+    sp1.addColorStop(0,skinLit); sp1.addColorStop(1,skinBase);
+    ctx.fillStyle=sp1; ctx.beginPath(); ctx.ellipse(-4,-4,7,8,0.3,0,Math.PI*2); ctx.fill();
+    const sp2=ctx.createRadialGradient(4,5,1,5,6,7);
+    sp2.addColorStop(0,skinLit); sp2.addColorStop(1,skinBase);
+    ctx.fillStyle=sp2; ctx.beginPath(); ctx.ellipse(5,6,5,6,-0.2,0,Math.PI*2); ctx.fill();
+    // Chest wound with depth
+    ctx.fillStyle='#2a0000'; ctx.beginPath(); ctx.ellipse(-3,-2,5,3,0.6,0,Math.PI*2); ctx.fill();
+    const wG=ctx.createRadialGradient(-3,-2,0,-3,-2,4.5);
+    wG.addColorStop(0,'#dd0000'); wG.addColorStop(.5,'#880000'); wG.addColorStop(1,'#2a0000');
+    ctx.fillStyle=wG; ctx.beginPath(); ctx.ellipse(-3,-2,3.5,2.2,0.6,0,Math.PI*2); ctx.fill();
+
+    // === ARMS ===
+    if (dancing) {
+      const waveL = Math.sin(dancePhase*2.2 + 1.1) * 22;
+      const waveR = Math.sin(dancePhase*2.2) * 22;
+      // Back arm raised
+      ctx.strokeStyle=clothLit; ctx.lineWidth=10; ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo(16,-8); ctx.lineTo(30,-22+waveR*.4); ctx.stroke();
+      ctx.strokeStyle=skinLit; ctx.lineWidth=9;
+      ctx.beginPath(); ctx.moveTo(30,-22+waveR*.4); ctx.lineTo(44,-40+waveR); ctx.stroke();
+      // Front arm raised
+      ctx.strokeStyle=cloth; ctx.lineWidth=11;
+      ctx.beginPath(); ctx.moveTo(-16,-8); ctx.lineTo(-30,-22+waveL*.4); ctx.stroke();
+      ctx.strokeStyle=skinBase; ctx.lineWidth=10;
+      ctx.beginPath(); ctx.moveTo(-30,-22+waveL*.4); ctx.lineTo(-44,-40+waveL); ctx.stroke();
+      // Arm highlights
+      ctx.strokeStyle=clothLit; ctx.lineWidth=3;
+      ctx.beginPath(); ctx.moveTo(-18,-9); ctx.lineTo(-31,-23+waveL*.4); ctx.stroke();
+      ctx.strokeStyle=skinLit; ctx.lineWidth=2.5;
+      ctx.beginPath(); ctx.moveTo(-31,-23+waveL*.4); ctx.lineTo(-45,-41+waveL); ctx.stroke();
+      // Clawed fingers — flailing upward
+      ctx.lineCap='round';
+      for (const [bx,dir,sk,wave] of [[-44,-1,skinBase,waveL],[44,1,skinLit,waveR]]) {
+        const fy = -40+wave;
+        ctx.strokeStyle=sk; ctx.lineWidth=3;
+        for (let f=-1;f<=1;f++) {
+          ctx.beginPath(); ctx.moveTo(bx,fy+f*5);
+          ctx.quadraticCurveTo(bx+dir*9,fy+f*5-8,bx+dir*16,fy-6+f*5); ctx.stroke();
+        }
+      }
+    } else {
+      // Normal hanging arms
+      ctx.strokeStyle=clothLit; ctx.lineWidth=10; ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo(16,-8); ctx.lineTo(28,4); ctx.stroke();
+      ctx.strokeStyle=skinLit; ctx.lineWidth=9;
+      ctx.beginPath(); ctx.moveTo(28,4); ctx.lineTo(40,18); ctx.stroke();
+      ctx.strokeStyle=cloth; ctx.lineWidth=11;
+      ctx.beginPath(); ctx.moveTo(-16,-8); ctx.lineTo(-28,4); ctx.stroke();
+      ctx.strokeStyle=skinBase; ctx.lineWidth=10;
+      ctx.beginPath(); ctx.moveTo(-28,4); ctx.lineTo(-40,18); ctx.stroke();
+      ctx.strokeStyle=clothLit; ctx.lineWidth=3;
+      ctx.beginPath(); ctx.moveTo(-18,-9); ctx.lineTo(-29,2); ctx.stroke();
+      ctx.strokeStyle=skinLit; ctx.lineWidth=2.5;
+      ctx.beginPath(); ctx.moveTo(-29,3); ctx.lineTo(-40,16); ctx.stroke();
+      ctx.lineCap='round';
+      for (const [bx,dir,sk] of [[-40,-1,skinBase],[40,1,skinLit]]) {
+        ctx.strokeStyle=sk; ctx.lineWidth=3;
+        for (let f=-1;f<=1;f++) {
+          ctx.beginPath(); ctx.moveTo(bx,18+f*5);
+          ctx.quadraticCurveTo(bx+dir*9,18+f*5-7,bx+dir*15,13+f*5); ctx.stroke();
+        }
+        ctx.strokeStyle=skinLit; ctx.lineWidth=1.5;
+        for (let f=-1;f<=1;f++) {
+          ctx.beginPath(); ctx.moveTo(bx+dir*2,17+f*5);
+          ctx.quadraticCurveTo(bx+dir*10,17+f*5-7,bx+dir*15,13+f*5); ctx.stroke();
+        }
+      }
+    }
+
+    // === NECK ===
+    const neckG=ctx.createLinearGradient(-5,-26,5,-14);
+    neckG.addColorStop(0,skinLit); neckG.addColorStop(1,skinDark);
+    ctx.fillStyle=neckG; ctx.beginPath(); ctx.roundRect(-5,-26,10,12,3); ctx.fill();
+
+    // === HEAD — directional radial lighting ===
+    const headG=ctx.createRadialGradient(-5,-50,2,0,-40,18);
+    headG.addColorStop(0,skinLit); headG.addColorStop(.42,skinBase); headG.addColorStop(1,skinDark);
+    ctx.fillStyle=headG;
+    ctx.beginPath(); ctx.ellipse(0,-40,14,17,0,0,Math.PI*2); ctx.fill();
+    // Rim light (left-back edge — backlit halo)
+    ctx.strokeStyle='rgba(120,180,80,0.14)'; ctx.lineWidth=4;
+    ctx.beginPath(); ctx.ellipse(-6,-41,10,15,-0.2,Math.PI*.5,Math.PI*1.55); ctx.stroke();
+    // Ambient occlusion — temple/brow darkening
+    ctx.fillStyle='rgba(0,0,0,0.22)';
+    ctx.beginPath(); ctx.ellipse(4,-48,9,6,0.2,0,Math.PI*2); ctx.fill();
+    // Cheekbone specular highlight
+    ctx.fillStyle='rgba(255,255,255,0.1)';
+    ctx.beginPath(); ctx.ellipse(-5,-37,5,3,-0.3,0,Math.PI*2); ctx.fill();
+
+    // Hair (sparse patches with subtle highlight)
+    ctx.fillStyle='#160f04';
+    ctx.beginPath(); ctx.ellipse(-4,-54,9,5,-.3,0,Math.PI); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(5,-53,6,4,.3,0,Math.PI); ctx.fill();
+    ctx.fillStyle='rgba(60,35,12,0.4)'; ctx.globalAlpha=fade*.7;
+    ctx.beginPath(); ctx.ellipse(-5,-55,5,3,-.3,0,Math.PI*.7); ctx.fill();
+    ctx.globalAlpha=fade;
+
+    // Eye sockets — depth gradient (darkest at center)
+    for (const ex of [-6,6]) {
+      const eyeG=ctx.createRadialGradient(ex,-43,0,ex,-43,6);
+      eyeG.addColorStop(0,'#030000'); eyeG.addColorStop(.65,'#110404'); eyeG.addColorStop(1,skinDark);
+      ctx.fillStyle=eyeG; ctx.beginPath(); ctx.ellipse(ex,-43,5.5,4.5,0,0,Math.PI*2); ctx.fill();
+    }
+    // Glowing irises with specular dot
+    ctx.shadowColor='#ff0000'; ctx.shadowBlur=18; ctx.fillStyle='#cc0000';
+    for (const ex of [-6,6]){ctx.beginPath();ctx.arc(ex,-43,2.8,0,Math.PI*2);ctx.fill();}
+    ctx.fillStyle='#ff5555'; ctx.shadowBlur=7;
+    for (const ex of [-6,6]){ctx.beginPath();ctx.arc(ex,-43,1.2,0,Math.PI*2);ctx.fill();}
+    ctx.shadowBlur=0; ctx.fillStyle='rgba(255,255,255,0.55)';
+    for (const ex of [-6,6]){ctx.beginPath();ctx.arc(ex-1,-44.2,.8,0,Math.PI*2);ctx.fill();}
+
+    // Nose — sunken cavity with radial depth
+    const noseG=ctx.createRadialGradient(0,-38,0,0,-37,5);
+    noseG.addColorStop(0,'rgba(0,0,0,0.65)'); noseG.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=noseG; ctx.beginPath(); ctx.ellipse(0,-38,3,4,0,0,Math.PI*2); ctx.fill();
+
+    // Lower jaw — lit gradient
+    const jawG=ctx.createRadialGradient(-3,-29,2,0,-30,12);
+    jawG.addColorStop(0,skinLit); jawG.addColorStop(.6,skinBase); jawG.addColorStop(1,skinDark);
+    ctx.fillStyle=jawG; ctx.beginPath(); ctx.ellipse(0,-30,10,6,0,0,Math.PI); ctx.fill();
+    ctx.fillStyle='#100202'; ctx.beginPath(); ctx.ellipse(0,-32,7,4,0,0,Math.PI*2); ctx.fill();
+
+    // Teeth — gradient from lit (top) to dark (bottom)
+    const tthG=ctx.createLinearGradient(0,-37,0,-28);
+    tthG.addColorStop(0,'#ece4c4'); tthG.addColorStop(1,'#9a906a');
+    ctx.fillStyle=tthG;
+    for (const tx of [-6,-3,0,3,6]) {
+      ctx.beginPath(); ctx.moveTo(tx,-30); ctx.lineTo(tx-1.5,-36); ctx.lineTo(tx+1.5,-36); ctx.closePath(); ctx.fill();
+    }
+    const ltG=ctx.createLinearGradient(0,-30,0,-26);
+    ltG.addColorStop(0,'#ccc090'); ltG.addColorStop(1,'#7a7050');
+    ctx.fillStyle=ltG;
+    for (const tx of [-4,0,4]) {
+      ctx.beginPath(); ctx.moveTo(tx,-30); ctx.lineTo(tx-1.2,-27); ctx.lineTo(tx+1.2,-27); ctx.closePath(); ctx.fill();
+    }
+
+    // Hit flash overlay
+    if (z.hitFlash > 0) {
+      ctx.globalAlpha = Math.min(fade, (z.hitFlash / 12) * 0.72);
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(-55, -76, 110, 145);
+      ctx.globalAlpha = fade;
+    }
+    // Health bar (appears on level 2+ zombies with > 1 max health)
+    if (z.maxHealth > 1) {
+      const hf = Math.max(0, z.health / z.maxHealth);
+      ctx.fillStyle = '#1a0000'; ctx.fillRect(-28,-84,56,7);
+      ctx.fillStyle = hf > 0.5 ? '#33cc55' : '#cc3300';
+      ctx.fillRect(-28,-84,56*hf,7);
+      ctx.strokeStyle='rgba(0,0,0,0.6)'; ctx.lineWidth=1; ctx.strokeRect(-28,-84,56,7);
+    }
+
+    // Dance mode: musical notes + happy expression override
+    if (dancing) {
+      // Override eyes to happy arcs instead of glowing red orbs
+      for (const ex of [-6,6]) {
+        const eyeG=ctx.createRadialGradient(ex,-43,0,ex,-43,6);
+        eyeG.addColorStop(0,'#030000'); eyeG.addColorStop(.65,'#110404'); eyeG.addColorStop(1,skinDark);
+        ctx.fillStyle=eyeG; ctx.beginPath(); ctx.ellipse(ex,-43,5.5,4.5,0,0,Math.PI*2); ctx.fill();
+      }
+      ctx.shadowBlur=0; ctx.strokeStyle='#ffdd44'; ctx.lineWidth=2.5; ctx.lineCap='round';
+      for (const ex of [-6,6]) {
+        ctx.beginPath(); ctx.arc(ex,-43,3,Math.PI*1.15,Math.PI*1.85); ctx.stroke();
+      }
+      // Floating music notes
+      const notes=['♪','♩','♫','♬'];
+      ctx.shadowBlur=0;
+      for (let n=0;n<2;n++) {
+        const np = dancePhase*1.6 + n*1.5;
+        const rise = (np%1);
+        const nx2 = Math.sin(np*2.2)*28 + (n===0?-14:14);
+        const ny2 = -78 - rise*50;
+        const na2 = 0.7 - rise*0.65;
+        ctx.globalAlpha = fade * na2;
+        ctx.fillStyle = n===0 ? '#ffee44' : '#cc88ff';
+        ctx.font = `bold ${13+Math.sin(np)*2}px serif`;
+        ctx.textAlign='center';
+        ctx.fillText(notes[Math.floor(np*1.8)%notes.length], nx2, ny2);
+      }
+      ctx.globalAlpha = fade;
+    }
+
+    ctx.restore();
+  }
+}
+
+// ── Golden Grail sprite ───────────────────────────────────────────────────
+function drawGrail() {
+  if (!grail) return;
+  const pa = pl.angle;
+  const dirX = Math.cos(pa), dirY = Math.sin(pa);
+  const plX = -Math.sin(pa)*.66, plY = Math.cos(pa)*.66;
+  const inv = 1/(plX*dirY - dirX*plY);
+  const midY = CH/2 + pl.bobY;
+
+  const rx = grail.x-pl.x, ry = grail.y-pl.y;
+  const tX = inv*(dirY*rx - dirX*ry);
+  const tY = inv*(-plY*rx + plX*ry);
+  if (tY <= .15) return;
+
+  const sx = Math.floor(CW/2*(1+tX/tY));
+  const sh = Math.abs(Math.floor(CH/tY)) * .55; // slightly smaller than a zombie
+  const cL = Math.max(0, Math.floor(sx-sh/2));
+  const cR = Math.min(CW, Math.ceil(sx+sh/2));
+
+  const clip = new Path2D(); let vis = false;
+  for (let cx = cL; cx < cR; cx++) {
+    if (tY < zBuf[Math.floor(cx/STRIP)]) { clip.rect(cx,0,1,CH); vis=true; }
+  }
+  if (!vis) return;
+
+  const bob   = Math.sin(grail.bobPhase) * 10;
+  const glow  = 0.35 + Math.sin(grail.glowPhase) * 0.15;
+  const pulse = 18 + Math.sin(grail.glowPhase) * 7;
+  const fade  = Math.min(1, 3.5/tY);
+  const sc    = sh/70;
+  const cy2   = Math.floor(midY + bob);
+
+  ctx.save();
+  ctx.clip(clip);
+  ctx.globalAlpha = fade;
+  ctx.translate(sx, cy2);
+  ctx.scale(sc, sc);
+
+  // Ambient glow halo
+  const halo = ctx.createRadialGradient(0,0,0,0,0,55);
+  halo.addColorStop(0, `rgba(255,215,0,${glow})`);
+  halo.addColorStop(1,  'rgba(255,180,0,0)');
+  ctx.fillStyle = halo;
+  ctx.beginPath(); ctx.arc(0,0,55,0,Math.PI*2); ctx.fill();
+
+  ctx.shadowColor='#ffd700'; ctx.shadowBlur=pulse;
+
+  // Cup bowl (trapezoid)
+  ctx.fillStyle='#ffd700';
+  ctx.beginPath();
+  ctx.moveTo(-22,-30); ctx.lineTo(22,-30);
+  ctx.lineTo(14,-4);   ctx.lineTo(-14,-4);
+  ctx.closePath(); ctx.fill();
+
+  // Rim highlight
+  ctx.strokeStyle='#fffacc'; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.moveTo(-22,-30); ctx.lineTo(22,-30); ctx.stroke();
+
+  // Inner cup (dark liquid)
+  ctx.fillStyle='#7a5500';
+  ctx.beginPath();
+  ctx.moveTo(-19,-28); ctx.lineTo(19,-28);
+  ctx.lineTo(12,-6);   ctx.lineTo(-12,-6);
+  ctx.closePath(); ctx.fill();
+
+  // Glowing liquid surface
+  const liq = `rgba(255,220,50,${.6+Math.sin(grail.glowPhase*.7)*.2})`;
+  ctx.fillStyle=liq;
+  ctx.beginPath(); ctx.ellipse(0,-18,13,4,0,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='rgba(255,255,180,0.6)'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.ellipse(0,-18,13,4,0,0,Math.PI*2); ctx.stroke();
+
+  // Stem
+  const sg = ctx.createLinearGradient(-5,-4,5,-4);
+  sg.addColorStop(0,'#a06000'); sg.addColorStop(.5,'#ffd700'); sg.addColorStop(1,'#a06000');
+  ctx.fillStyle=sg;
+  ctx.beginPath(); ctx.roundRect(-5,-4,10,24,2); ctx.fill();
+
+  // Knob
+  ctx.fillStyle='#ffd700';
+  ctx.beginPath(); ctx.ellipse(0,10,9,5,0,0,Math.PI*2); ctx.fill();
+
+  // Base plate
+  const bg2 = ctx.createLinearGradient(-20,18,20,18);
+  bg2.addColorStop(0,'#a06000'); bg2.addColorStop(.5,'#ffd700'); bg2.addColorStop(1,'#a06000');
+  ctx.fillStyle=bg2;
+  ctx.beginPath(); ctx.ellipse(0,22,20,6,0,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#fffacc'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.ellipse(0,20,18,5,0,0,Math.PI*2); ctx.stroke();
+
+  // Jewel gems on cup (decorative)
+  const gems = [[-14,-18,'#ff4444'],[0,-22,'#44aaff'],[14,-18,'#44ff88']];
+  for (const [gx,gy,gc] of gems) {
+    ctx.fillStyle=gc; ctx.shadowColor=gc; ctx.shadowBlur=6;
+    ctx.beginPath(); ctx.arc(gx,gy,3,0,Math.PI*2); ctx.fill();
+  }
+
+  ctx.shadowBlur=0;
+  ctx.restore();
+
+  // Distance pulse ring — draw outside clip in screen space
+  if (tY < 4) {
+    const alpha = (1-tY/4)*.5;
+    ctx.save();
+    ctx.globalAlpha=alpha;
+    ctx.strokeStyle='#ffd700'; ctx.lineWidth=2+Math.sin(grail.glowPhase)*1;
+    ctx.shadowColor='#ffd700'; ctx.shadowBlur=12;
+    ctx.beginPath(); ctx.arc(sx, cy2, (60+Math.sin(grail.glowPhase)*10)*sc, 0, Math.PI*2);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+// ── Torch / vignette ──────────────────────────────────────────────────────
+function drawTorch() {
+  if (morning) {
+    // Morning: soft ambient light, very mild vignette only
+    const vig = ctx.createRadialGradient(CW/2,CH/2, CW*.2, CW/2,CH/2, CW*.72);
+    vig.addColorStop(0,   'rgba(0,0,0,0)');
+    vig.addColorStop(1,   'rgba(0,0,0,0.22)');
+    ctx.fillStyle = vig; ctx.fillRect(0,0,CW,CH);
+    // Soft warm sunlight bloom from upper-center
+    const sun = ctx.createRadialGradient(CW/2, 0, 0, CW/2, 0, CH*.9);
+    sun.addColorStop(0,   'rgba(255,220,120,0.12)');
+    sun.addColorStop(.5,  'rgba(255,180,80,0.04)');
+    sun.addColorStop(1,   'rgba(0,0,0,0)');
+    ctx.fillStyle = sun; ctx.fillRect(0,0,CW,CH);
+  } else {
+    const torch = ctx.createRadialGradient(CW/2, CH*.65, 0, CW/2, CH*.5, worldCfg.tR);
+    torch.addColorStop(0,   worldCfg.tc);
+    torch.addColorStop(.45, worldCfg.tc2);
+    torch.addColorStop(1,   'rgba(0,0,0,0)');
+    ctx.fillStyle = torch; ctx.fillRect(0,0,CW,CH);
+    const vig = ctx.createRadialGradient(CW/2,CH/2, CW*.08, CW/2,CH/2, CW*.7);
+    vig.addColorStop(0,   'rgba(0,0,0,0)');
+    vig.addColorStop(.55, 'rgba(0,0,0,0.15)');
+    vig.addColorStop(1,   `rgba(0,0,0,${worldCfg.va})`);
+    ctx.fillStyle = vig; ctx.fillRect(0,0,CW,CH);
+  }
+}
+
+// ── First-person sword + hand ─────────────────────────────────────────────
+function drawSword() {
+  const lvl = gs.swordLevel;
+  const blen = 270 + lvl*55;
+  ctx.save();
+
+  let ox, oy, ang;
+  if (sw.on) {
+    const t = ease(sw.t);
+    ox = CW*(.78 - t*.54); oy = CH*(.85 - t*.28);
+    ang = -Math.PI/4 - t*Math.PI*.64;
+  } else {
+    ox = CW*.78; oy = CH*.85 + Math.sin(pl.bobPhase*2)*5;
+    ang = -Math.PI/4;
+  }
+
+  ctx.translate(ox, oy);
+  ctx.rotate(ang);
+
+  // ── Blade ──────────────────────────────────────────────────
+  ctx.shadowColor = SWORD_COLORS[lvl]; ctx.shadowBlur = 24;
+  const bladeGrad = ctx.createLinearGradient(-3,-blen,3,0);
+  bladeGrad.addColorStop(0,'#ffffff');
+  bladeGrad.addColorStop(.18, SWORD_COLORS[lvl]);
+  bladeGrad.addColorStop(1,'#40405a');
+  ctx.fillStyle = bladeGrad;
+  ctx.beginPath();
+  ctx.moveTo(-3,-8); ctx.lineTo(3,-8);
+  ctx.lineTo(2,-blen); ctx.lineTo(0,-blen-16); ctx.lineTo(-2,-blen);
+  ctx.closePath(); ctx.fill();
+  // Fuller (central ridge)
+  ctx.strokeStyle='rgba(255,255,255,0.35)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(0,-10); ctx.lineTo(0,-blen+10); ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  if (lvl > 0) bladeEffects(lvl, blen);
+
+  // ── Per-level metal palette ────────────────────────────────
+  const gemCols = ['#a8a8c4','#bb55ff','#00ccff','#ff7722','#ee22ff'];
+  const gemCol  = gemCols[lvl];
+  const mDark   = ['#22223a','#1e1430','#0c1c2c','#201208','#100814'][lvl];
+  const mMid    = ['#52526e','#504470','#2c4c68','#583e22','#381e42'][lvl];
+  const mHi     = ['#9898bc','#9474ca','#64a8cc','#a47030','#685090'][lvl];
+  const mInlay  = ['#7070a0','#cc66ff','#33ccff','#ff8822','#ff33ff'][lvl];
+
+  // ── Ricasso collar ─────────────────────────────────────────
+  // Decorative metal band where blade meets guard
+  ctx.save();
+  const rcG = ctx.createLinearGradient(-9,-23,9,-23);
+  rcG.addColorStop(0,mDark); rcG.addColorStop(.42,mHi); rcG.addColorStop(1,mDark);
+  ctx.fillStyle=rcG; ctx.shadowColor='rgba(0,0,0,0.55)'; ctx.shadowBlur=5;
+  ctx.beginPath(); ctx.roundRect(-9,-23,18,11,2); ctx.fill();
+  ctx.shadowBlur=0;
+  // Top highlight
+  ctx.strokeStyle=mHi; ctx.lineWidth=.9;
+  ctx.beginPath(); ctx.moveTo(-8,-23); ctx.lineTo(8,-23); ctx.stroke();
+  // Inlay band
+  ctx.strokeStyle=mInlay; ctx.lineWidth=1; ctx.globalAlpha=.55;
+  ctx.beginPath(); ctx.moveTo(-8,-20); ctx.lineTo(8,-20); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-8,-16); ctx.lineTo(8,-16); ctx.stroke();
+  ctx.globalAlpha=1;
+  ctx.restore();
+
+  // ── Crossguard ─────────────────────────────────────────────
+  ctx.save();
+  ctx.shadowColor='rgba(0,0,0,0.7)'; ctx.shadowBlur=10;
+
+  // Left quillon — organic swept curve, widens then tapers to tip
+  const lgG = ctx.createLinearGradient(-46,-16,0,2);
+  lgG.addColorStop(0,mDark); lgG.addColorStop(.55,mMid); lgG.addColorStop(1,mMid);
+  ctx.fillStyle=lgG;
+  ctx.beginPath();
+  ctx.moveTo(-10,-17);
+  ctx.bezierCurveTo(-18,-17,-30,-16,-40,-12);  // top edge out
+  ctx.bezierCurveTo(-46,-10,-46,-7,-44,-5);    // curve around tip
+  ctx.bezierCurveTo(-42,-3,-36,-2,-26,-2);     // bottom edge starts
+  ctx.bezierCurveTo(-18,-2,-10,-3,-10,-4);     // back to center
+  ctx.closePath(); ctx.fill();
+
+  // Right quillon
+  const rgG = ctx.createLinearGradient(0,-16,46,2);
+  rgG.addColorStop(0,mMid); rgG.addColorStop(.45,mMid); rgG.addColorStop(1,mDark);
+  ctx.fillStyle=rgG;
+  ctx.beginPath();
+  ctx.moveTo(10,-17);
+  ctx.bezierCurveTo(18,-17,30,-16,40,-12);
+  ctx.bezierCurveTo(46,-10,46,-7,44,-5);
+  ctx.bezierCurveTo(42,-3,36,-2,26,-2);
+  ctx.bezierCurveTo(18,-2,10,-3,10,-4);
+  ctx.closePath(); ctx.fill();
+
+  // Center raised block
+  const cgG = ctx.createLinearGradient(-12,-21,12,2);
+  cgG.addColorStop(0,mMid); cgG.addColorStop(.38,mHi); cgG.addColorStop(1,mDark);
+  ctx.fillStyle=cgG;
+  ctx.beginPath(); ctx.roundRect(-12,-21,24,21,4); ctx.fill();
+  ctx.shadowBlur=0;
+
+  // Inlay lines tracing the quillon arms
+  ctx.strokeStyle=mInlay; ctx.lineWidth=1.4; ctx.globalAlpha=.7;
+  ctx.beginPath(); ctx.moveTo(-10,-15); ctx.bezierCurveTo(-22,-15,-36,-13,-42,-9); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(10,-15);  ctx.bezierCurveTo(22,-15,36,-13,42,-9);   ctx.stroke();
+  ctx.globalAlpha=1;
+  // Top edge highlight
+  ctx.strokeStyle=mHi; ctx.lineWidth=1; ctx.globalAlpha=.4;
+  ctx.beginPath(); ctx.moveTo(-12,-21); ctx.lineTo(12,-21); ctx.stroke();
+  ctx.globalAlpha=1;
+  // Engraved center channel
+  ctx.strokeStyle='rgba(0,0,0,0.55)'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(0,-20); ctx.lineTo(0,-1); ctx.stroke();
+  ctx.strokeStyle=mHi; ctx.lineWidth=.6; ctx.globalAlpha=.25;
+  ctx.beginPath(); ctx.moveTo(0,-20); ctx.lineTo(0,-1); ctx.stroke();
+  ctx.globalAlpha=1;
+
+  // Quillon tip knobs — gradient sphere look + small inlay gem
+  for (const [kx,ky] of [[-43,-8],[43,-8]]) {
+    const tg = ctx.createRadialGradient(kx+(kx<0?2.5:-2.5),ky-2,0,kx,ky,8.5);
+    tg.addColorStop(0,mHi); tg.addColorStop(.5,mMid); tg.addColorStop(1,mDark);
+    ctx.fillStyle=tg; ctx.shadowColor='rgba(0,0,0,0.6)'; ctx.shadowBlur=7;
+    ctx.beginPath(); ctx.arc(kx,ky,8.5,0,Math.PI*2); ctx.fill();
+    // Specular highlight
+    ctx.fillStyle=mHi; ctx.globalAlpha=.4;
+    ctx.beginPath(); ctx.ellipse(kx+(kx<0?-2.5:2.5),ky-2.5,3,2,kx<0?0.4:-0.4,0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha=1;
+    // Small gem inlay at tip
+    ctx.fillStyle=gemCol; ctx.shadowColor=gemCol; ctx.shadowBlur=lvl>0?12:4;
+    ctx.beginPath(); ctx.arc(kx,ky,3,0,Math.PI*2); ctx.fill();
+    ctx.shadowBlur=0;
+  }
+
+  // Central octagonal gem with cut-facet star lines
+  const gr=9;
+  ctx.shadowColor=gemCol; ctx.shadowBlur=lvl>0?28:10;
+  // Dark backing
+  ctx.fillStyle=mDark;
+  ctx.beginPath();
+  for (let i=0;i<8;i++){const a=Math.PI/8+i*Math.PI/4; i===0?ctx.moveTo(Math.cos(a)*gr,-8.5+Math.sin(a)*gr):ctx.lineTo(Math.cos(a)*gr,-8.5+Math.sin(a)*gr);}
+  ctx.closePath(); ctx.fill();
+  // Gem color fill
+  ctx.fillStyle=gemCol; ctx.globalAlpha=.9;
+  ctx.beginPath();
+  for (let i=0;i<8;i++){const a=Math.PI/8+i*Math.PI/4; i===0?ctx.moveTo(Math.cos(a)*gr,-8.5+Math.sin(a)*gr):ctx.lineTo(Math.cos(a)*gr,-8.5+Math.sin(a)*gr);}
+  ctx.closePath(); ctx.fill(); ctx.globalAlpha=1;
+  // Facet star lines from center
+  ctx.strokeStyle='rgba(255,255,255,0.3)'; ctx.lineWidth=.9;
+  for (let i=0;i<8;i++){const a=Math.PI/8+i*Math.PI/4; ctx.beginPath(); ctx.moveTo(0,-8.5); ctx.lineTo(Math.cos(a)*gr,-8.5+Math.sin(a)*gr); ctx.stroke();}
+  // Rim
+  ctx.strokeStyle='rgba(255,255,255,0.45)'; ctx.lineWidth=1;
+  ctx.beginPath();
+  for (let i=0;i<8;i++){const a=Math.PI/8+i*Math.PI/4; i===0?ctx.moveTo(Math.cos(a)*gr,-8.5+Math.sin(a)*gr):ctx.lineTo(Math.cos(a)*gr,-8.5+Math.sin(a)*gr);}
+  ctx.closePath(); ctx.stroke();
+  // Specular highlight
+  ctx.fillStyle='rgba(255,255,255,0.65)';
+  ctx.beginPath(); ctx.ellipse(-2.5,-11,3,2,-0.4,0,Math.PI*2); ctx.fill();
+  ctx.shadowBlur=0;
+  ctx.restore();
+
+  // ── Grip — metal collars + diamond wire over waisted wood ───
+  ctx.save();
+  // Guard-side collar
+  const gcG = ctx.createLinearGradient(-8,-2,8,-2);
+  gcG.addColorStop(0,mDark); gcG.addColorStop(.42,mHi); gcG.addColorStop(1,mDark);
+  ctx.fillStyle=gcG; ctx.shadowColor='rgba(0,0,0,0.55)'; ctx.shadowBlur=5;
+  ctx.beginPath(); ctx.roundRect(-8,-2,16,8,2); ctx.fill();
+  ctx.strokeStyle=mHi; ctx.lineWidth=.9; ctx.shadowBlur=0;
+  ctx.beginPath(); ctx.moveTo(-7,-2); ctx.lineTo(7,-2); ctx.stroke();
+  ctx.strokeStyle=mInlay; ctx.lineWidth=.8; ctx.globalAlpha=.5;
+  ctx.beginPath(); ctx.moveTo(-7,0); ctx.lineTo(7,0); ctx.stroke();
+  ctx.globalAlpha=1;
+
+  // Waisted wood core
+  const woodG = ctx.createLinearGradient(-6,0,6,0);
+  woodG.addColorStop(0,'#100700'); woodG.addColorStop(.4,'#3a1a08'); woodG.addColorStop(1,'#100700');
+  ctx.fillStyle=woodG;
+  ctx.beginPath();
+  ctx.moveTo(-5.5,6); ctx.lineTo(5.5,6);
+  ctx.bezierCurveTo(4.5,11,4,18,5,28);
+  ctx.lineTo(-5,28);
+  ctx.bezierCurveTo(-4,18,-4.5,11,-5.5,6);
+  ctx.closePath(); ctx.fill();
+
+  // Clip wire wrap
+  ctx.beginPath();
+  ctx.moveTo(-5.5,6); ctx.lineTo(5.5,6);
+  ctx.bezierCurveTo(4.5,11,4,18,5,28); ctx.lineTo(-5,28);
+  ctx.bezierCurveTo(-4,18,-4.5,11,-5.5,6); ctx.closePath(); ctx.clip();
+  // Leather base
+  ctx.fillStyle='rgba(30,14,4,0.6)'; ctx.fillRect(-6,6,12,22);
+  // Wire (\)
+  ctx.strokeStyle='rgba(160,108,40,0.8)'; ctx.lineWidth=1.7; ctx.lineCap='butt';
+  for (let gy=-2;gy<32;gy+=4.5){ctx.beginPath();ctx.moveTo(-7,gy);ctx.lineTo(7,gy+8);ctx.stroke();}
+  // Wire (/)
+  for (let gy=-2;gy<32;gy+=4.5){ctx.beginPath();ctx.moveTo(7,gy);ctx.lineTo(-7,gy+8);ctx.stroke();}
+  // Binding knots
+  ctx.strokeStyle='rgba(65,35,6,0.95)'; ctx.lineWidth=2.4;
+  for (let gy=6;gy<29;gy+=9){ctx.beginPath();ctx.moveTo(-6,gy);ctx.lineTo(6,gy);ctx.stroke();}
+  // Sheen
+  ctx.fillStyle='rgba(255,200,80,0.04)'; ctx.fillRect(-3,6,5,22);
+  ctx.restore();
+
+  // Pommel-side collar
+  ctx.save();
+  const pcG = ctx.createLinearGradient(-8,27,8,27);
+  pcG.addColorStop(0,mDark); pcG.addColorStop(.42,mHi); pcG.addColorStop(1,mDark);
+  ctx.fillStyle=pcG; ctx.shadowColor='rgba(0,0,0,0.5)'; ctx.shadowBlur=4;
+  ctx.beginPath(); ctx.roundRect(-8,27,16,8,2); ctx.fill();
+  ctx.strokeStyle=mInlay; ctx.lineWidth=.8; ctx.globalAlpha=.45; ctx.shadowBlur=0;
+  ctx.beginPath(); ctx.moveTo(-7,30); ctx.lineTo(7,30); ctx.stroke();
+  ctx.globalAlpha=1;
+  ctx.restore();
+
+  // ── Pommel — multi-ring wheel with gem boss ─────────────────
+  ctx.save();
+  const pR=18, pY=36;
+  ctx.shadowColor='rgba(0,0,0,0.85)'; ctx.shadowBlur=16; ctx.shadowOffsetY=5;
+  // Outer disc
+  const pomOut = ctx.createRadialGradient(-5.5,pY-5,2,0,pY,pR);
+  pomOut.addColorStop(0,mHi); pomOut.addColorStop(.45,mMid); pomOut.addColorStop(1,mDark);
+  ctx.fillStyle=pomOut;
+  ctx.beginPath(); ctx.arc(0,pY,pR,0,Math.PI*2); ctx.fill();
+  ctx.shadowBlur=0; ctx.shadowOffsetY=0;
+  // Outer inlay ring
+  ctx.strokeStyle=mInlay; ctx.lineWidth=1.6; ctx.globalAlpha=.55;
+  ctx.beginPath(); ctx.arc(0,pY,pR-3.5,0,Math.PI*2); ctx.stroke();
+  ctx.globalAlpha=1;
+  // Facet marks on outer ring
+  ctx.strokeStyle='rgba(255,255,255,0.12)'; ctx.lineWidth=1.2;
+  for (let i=0;i<14;i++){
+    const a0=(i/14)*Math.PI*2, a1=((i+.3)/14)*Math.PI*2;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a0)*(pR-4),pY+Math.sin(a0)*(pR-4));
+    ctx.lineTo(Math.cos(a1)*pR,pY+Math.sin(a1)*pR);
+    ctx.stroke();
+  }
+  // Middle disc
+  const pomMid = ctx.createRadialGradient(-3,pY-2,0,0,pY,11);
+  pomMid.addColorStop(0,mHi); pomMid.addColorStop(.55,mMid); pomMid.addColorStop(1,mDark);
+  ctx.fillStyle=pomMid;
+  ctx.beginPath(); ctx.arc(0,pY,11,0,Math.PI*2); ctx.fill();
+  // Inner inlay ring
+  ctx.strokeStyle=mInlay; ctx.lineWidth=1; ctx.globalAlpha=.45;
+  ctx.beginPath(); ctx.arc(0,pY,11,0,Math.PI*2); ctx.stroke();
+  ctx.globalAlpha=1;
+  // Gem boss
+  const bossG = ctx.createRadialGradient(-2.5,pY-2,0,0,pY,7);
+  bossG.addColorStop(0,'#f8f8ff'); bossG.addColorStop(.28,gemCol); bossG.addColorStop(1,mDark);
+  ctx.fillStyle=bossG; ctx.shadowColor=gemCol; ctx.shadowBlur=lvl>0?28:7;
+  ctx.beginPath(); ctx.arc(0,pY,7,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,0.6)';
+  ctx.beginPath(); ctx.ellipse(-2.5,pY-3,3,2,-0.3,0,Math.PI*2); ctx.fill();
+  ctx.shadowBlur=0;
+  ctx.restore();
+
+  // ── Gauntlet hand ───────────────────────────────────────────
+  ctx.save();
+  const skinHue='#c8a87e', armorCol='#5c6c80', armorHi='#8899b0';
+  // Forearm vambrace
+  const vG=ctx.createLinearGradient(-16,36,16,36);
+  vG.addColorStop(0,armorCol); vG.addColorStop(.4,armorHi); vG.addColorStop(1,armorCol);
+  ctx.fillStyle=vG; ctx.shadowColor='rgba(100,120,160,0.4)'; ctx.shadowBlur=6;
+  ctx.beginPath(); ctx.roundRect(-14,36,28,88,5); ctx.fill(); ctx.shadowBlur=0;
+  ctx.fillStyle='rgba(180,200,240,0.2)';
+  ctx.beginPath(); ctx.roundRect(-8,40,6,76,3); ctx.fill();
+  ctx.fillStyle='#3a4a5a';
+  for (const [rx,ry] of [[-10,44],[8,44],[-10,78],[8,78],[-10,108],[8,108]]){ctx.beginPath();ctx.arc(rx,ry,2,0,Math.PI*2);ctx.fill();}
+  // Wrist band
+  const wG=ctx.createLinearGradient(-15,33,15,33);
+  wG.addColorStop(0,'#3a4a5a'); wG.addColorStop(.5,'#7a8a9a'); wG.addColorStop(1,'#3a4a5a');
+  ctx.fillStyle=wG; ctx.beginPath(); ctx.roundRect(-15,32,30,8,3); ctx.fill();
+  // Gauntlet back plate
+  const gbG=ctx.createLinearGradient(-14,0,14,0);
+  gbG.addColorStop(0,armorCol); gbG.addColorStop(.45,armorHi); gbG.addColorStop(1,armorCol);
+  ctx.fillStyle=gbG; ctx.shadowColor='rgba(120,140,180,0.3)'; ctx.shadowBlur=5;
+  ctx.beginPath(); ctx.roundRect(-14,0,28,30,4); ctx.fill(); ctx.shadowBlur=0;
+  ctx.strokeStyle=armorHi; ctx.lineWidth=1.5;
+  for (const kx of [-8,-2,4,10]){ctx.fillStyle=armorCol;ctx.beginPath();ctx.roundRect(kx,2,4,10,2);ctx.fill();ctx.stroke();}
+  ctx.fillStyle='rgba(180,200,240,0.18)'; ctx.beginPath(); ctx.roundRect(-12,2,10,12,3); ctx.fill();
+  // Palm
+  ctx.fillStyle=skinHue; ctx.beginPath(); ctx.roundRect(-14,6,15,22,4); ctx.fill();
+  ctx.fillStyle='rgba(0,0,0,0.22)'; ctx.beginPath(); ctx.roundRect(-13,8,12,18,3); ctx.fill();
+  // Fingers
+  for (let f=0;f<4;f++){
+    const fy=6+f*5;
+    ctx.fillStyle=skinHue; ctx.beginPath(); ctx.roundRect(-18,fy,6,4,2); ctx.fill();
+    ctx.fillStyle='rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.roundRect(-18,fy,6,2,1); ctx.fill();
+    ctx.fillStyle='#8899aa'; ctx.beginPath(); ctx.roundRect(-20,fy+.5,3,3,1); ctx.fill();
+  }
+  // Thumb
+  ctx.fillStyle=skinHue; ctx.beginPath(); ctx.roundRect(2,-2,9,14,4); ctx.fill();
+  ctx.fillStyle='rgba(0,0,0,0.2)'; ctx.beginPath(); ctx.roundRect(2,-2,9,7,3); ctx.fill();
+  ctx.fillStyle='#8899aa'; ctx.beginPath(); ctx.roundRect(3,-3,7,5,2); ctx.fill();
+
+  // === ELBOW JOINT ===
+  const elbG=ctx.createRadialGradient(-4,127,2,0,124,20);
+  elbG.addColorStop(0,armorHi); elbG.addColorStop(.5,armorCol); elbG.addColorStop(1,'#22303e');
+  ctx.fillStyle=elbG; ctx.shadowColor='rgba(0,0,0,0.65)'; ctx.shadowBlur=10;
+  ctx.beginPath(); ctx.ellipse(0,126,19,15,0,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
+  ctx.strokeStyle=armorHi; ctx.lineWidth=1.5; ctx.globalAlpha=0.45;
+  ctx.beginPath(); ctx.ellipse(-3,123,13,10,-0.2,0,Math.PI*2); ctx.stroke(); ctx.globalAlpha=1;
+  // Elbow center bolt
+  ctx.fillStyle='#22303e'; ctx.beginPath(); ctx.arc(0,126,4,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle=armorHi; ctx.beginPath(); ctx.arc(-1.5,124.5,1.8,0,Math.PI*2); ctx.fill();
+
+  // === UPPER ARM ===
+  const uaG=ctx.createLinearGradient(-20,138,20,138);
+  uaG.addColorStop(0,'#1e2c3a'); uaG.addColorStop(.35,armorHi); uaG.addColorStop(.65,armorCol); uaG.addColorStop(1,'#1e2c3a');
+  ctx.fillStyle=uaG; ctx.shadowColor='rgba(0,0,0,0.5)'; ctx.shadowBlur=8;
+  ctx.beginPath();
+  ctx.moveTo(-17,134); ctx.lineTo(17,134);
+  ctx.bezierCurveTo(21,148,23,168,21,195);
+  ctx.lineTo(-21,195);
+  ctx.bezierCurveTo(-23,168,-21,148,-17,134);
+  ctx.closePath(); ctx.fill(); ctx.shadowBlur=0;
+  // Upper arm highlight strip
+  ctx.fillStyle='rgba(180,200,240,0.14)';
+  ctx.beginPath(); ctx.roundRect(-12,138,9,52,5); ctx.fill();
+  // Upper arm panel lines
+  ctx.strokeStyle='rgba(0,0,0,0.35)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(-8,145); ctx.lineTo(-8,188); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(8,145); ctx.lineTo(8,188); ctx.stroke();
+  // Upper arm rivets
+  ctx.fillStyle='#22303e';
+  for (const [rx,ry] of [[-13,144],[11,144],[-13,172],[11,172],[-13,188],[11,188]]) {
+    ctx.beginPath(); ctx.arc(rx,ry,2.5,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle=armorHi; ctx.beginPath(); ctx.arc(rx-.8,ry-.8,1,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#22303e';
+  }
+
+  // === PAULDRON (shoulder guard — bleeds off screen, sells the scale) ===
+  const pauG=ctx.createRadialGradient(-9,204,4,0,210,40);
+  pauG.addColorStop(0,armorHi); pauG.addColorStop(.45,armorCol); pauG.addColorStop(1,'#182028');
+  ctx.fillStyle=pauG; ctx.shadowColor='rgba(0,0,0,0.8)'; ctx.shadowBlur=16;
+  ctx.beginPath();
+  ctx.moveTo(-19,192);
+  ctx.bezierCurveTo(-30,198,-44,210,-44,235);
+  ctx.lineTo(44,235);
+  ctx.bezierCurveTo(44,210,30,198,19,192);
+  ctx.closePath(); ctx.fill(); ctx.shadowBlur=0;
+  // Pauldron scallop highlight
+  ctx.fillStyle='rgba(180,200,240,0.16)';
+  ctx.beginPath();
+  ctx.moveTo(-14,194); ctx.bezierCurveTo(-24,200,-32,212,-30,228);
+  ctx.lineTo(-12,228); ctx.bezierCurveTo(-11,213,-9,201,-10,195);
+  ctx.closePath(); ctx.fill();
+  // Pauldron rim
+  ctx.strokeStyle=armorHi; ctx.lineWidth=2; ctx.globalAlpha=0.35;
+  ctx.beginPath(); ctx.moveTo(-19,192); ctx.bezierCurveTo(-30,198,-44,210,-44,235); ctx.stroke();
+  ctx.globalAlpha=1;
+
+  ctx.restore();
+
+  ctx.restore();
+}
+
+// ── Elemental blade effects (called from within drawSword ctx.save scope) ──
+function bladeEffects(lvl, blen) {
+  const t = gameTime * 0.001;
+
+  if (lvl === 1) {
+    // Magic — purple orbiting sparkles
+    ctx.save();
+    for (let i = 0; i < 8; i++) {
+      const phase = t * 2.8 + (i / 8) * Math.PI * 2;
+      const hy = -18 - (i / 8) * blen;
+      const rx = Math.cos(phase) * (9 + Math.sin(phase * 1.7) * 2);
+      const a = 0.5 + Math.sin(phase * 2.3) * 0.3;
+      ctx.shadowColor = '#cc44ff'; ctx.shadowBlur = 14;
+      ctx.fillStyle = `rgba(180,80,255,${a.toFixed(2)})`;
+      ctx.beginPath(); ctx.arc(rx, hy, 2.8, 0, Math.PI * 2); ctx.fill();
+    }
+    // Rune marks along blade
+    ctx.strokeStyle = 'rgba(180,80,255,0.45)'; ctx.lineWidth = 1.2; ctx.lineCap = 'round';
+    ctx.shadowColor = '#8800ff'; ctx.shadowBlur = 10;
+    for (let i = 0; i < 4; i++) {
+      const ry = -22 - i * (blen / 4);
+      const sh = Math.sin(t * 4 + i) * 2;
+      ctx.beginPath(); ctx.moveTo(-3+sh,ry); ctx.lineTo(3+sh,ry-7);
+      ctx.moveTo(3+sh,ry); ctx.lineTo(-3+sh,ry-7); ctx.stroke();
+    }
+    ctx.shadowBlur = 0;
+    ctx.restore();
+
+  } else if (lvl === 2) {
+    // Electric — cyan flickering lightning arcs
+    ctx.save();
+    ctx.shadowColor = '#00ddff'; ctx.shadowBlur = 18;
+    for (let arc = 0; arc < 3; arc++) {
+      ctx.strokeStyle = arc === 1 ? 'rgba(255,255,255,0.9)' : 'rgba(80,220,255,0.65)';
+      ctx.lineWidth = arc === 1 ? 1 : 2;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      let py = -8; ctx.moveTo(0, py);
+      for (let s = 0; s < 7; s++) {
+        const nx = Math.sin(t * 34 + s * 1.9 + arc * 2.3) * (9 - arc * 2);
+        py -= blen / 7; ctx.lineTo(nx, py);
+      }
+      ctx.stroke();
+    }
+    for (let i = 0; i < 5; i++) {
+      const phase = t * 9 + i * 1.6;
+      const py = -12 - (((t * 2.2 + i * 0.2) % 1)) * blen;
+      const px = Math.sin(phase * 3.1) * 10;
+      ctx.fillStyle = 'rgba(200,245,255,0.9)'; ctx.shadowColor='#88ffff'; ctx.shadowBlur=8;
+      ctx.beginPath(); ctx.arc(px, py, 2.5, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+    ctx.restore();
+
+  } else if (lvl === 3) {
+    // Fire — flame particles rising up blade
+    ctx.save();
+    for (let i = 0; i < 14; i++) {
+      const frac = ((t * 1.9 + i * (1 / 14)) % 1);
+      const py = -10 - frac * blen;
+      const px = Math.sin(t * 2.5 + i * 0.9) * (4 + (1 - frac) * 8);
+      const size = 2.5 + (1 - frac) * 5;
+      const alpha = frac < 0.7 ? 0.8 : ((1 - frac) / 0.3) * 0.8;
+      const g = Math.floor(55 + (1 - frac) * 160);
+      ctx.shadowColor = '#ff5500'; ctx.shadowBlur = 10;
+      ctx.fillStyle = `rgba(255,${g},0,${alpha.toFixed(2)})`;
+      ctx.beginPath(); ctx.arc(px, py, size, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+    ctx.restore();
+
+  } else if (lvl === 4) {
+    // Ultimate — void aura + all effects combined
+    ctx.save();
+    // Void aura core
+    const vg = ctx.createLinearGradient(-5, -blen, 5, 0);
+    vg.addColorStop(0, 'rgba(200,0,255,0.45)');
+    vg.addColorStop(.5, 'rgba(0,200,255,0.3)');
+    vg.addColorStop(1, 'rgba(255,80,0,0.2)');
+    ctx.strokeStyle = vg; ctx.lineWidth = 9; ctx.lineCap = 'round';
+    ctx.shadowColor = '#8800cc'; ctx.shadowBlur = 32;
+    ctx.beginPath(); ctx.moveTo(0,-5); ctx.lineTo(0,-blen); ctx.stroke();
+    // Magic orbs
+    ctx.shadowBlur = 14; ctx.shadowColor = '#cc44ff';
+    for (let i = 0; i < 6; i++) {
+      const phase = t * 3.2 + (i / 6) * Math.PI * 2;
+      const hy = -22 - (i / 6) * blen;
+      ctx.fillStyle = 'rgba(200,100,255,0.7)';
+      ctx.beginPath(); ctx.arc(Math.cos(phase)*12, hy, 3.2, 0, Math.PI*2); ctx.fill();
+    }
+    // Electric arc
+    ctx.shadowColor = '#00eeff'; ctx.shadowBlur = 15;
+    ctx.strokeStyle = 'rgba(120,230,255,0.75)'; ctx.lineWidth=1.5; ctx.lineCap='round';
+    ctx.beginPath(); let epy=-8; ctx.moveTo(0,epy);
+    for (let s=0;s<8;s++) { epy-=blen/8; ctx.lineTo(Math.sin(t*30+s*2.1)*10, epy); }
+    ctx.stroke();
+    // Fire particles
+    for (let i=0;i<8;i++) {
+      const frac=((t*2.2+i*(1/8))%1);
+      const alpha=frac<0.7?0.65:((1-frac)/0.3)*0.65;
+      ctx.fillStyle=`rgba(255,${Math.floor(45+(1-frac)*165)},0,${alpha.toFixed(2)})`;
+      ctx.shadowColor='#ff4400'; ctx.shadowBlur=8;
+      ctx.beginPath(); ctx.arc(Math.sin(t*2.2+i)*(3+(1-frac)*5),-10-frac*blen,3.8,0,Math.PI*2); ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  }
+}
+
+// ── Ceiling / floor ───────────────────────────────────────────────────────
+function drawCF() {
+  const mid = CH/2 + pl.bobY;
+  if (morning) {
+    // Dawn sky: pale blue fading to warm amber at horizon
+    const cg = ctx.createLinearGradient(0,0,0,mid);
+    cg.addColorStop(0,'#6090c8'); cg.addColorStop(.6,'#a8c8e8'); cg.addColorStop(1,'#f0c870');
+    ctx.fillStyle=cg; ctx.fillRect(0,0,CW,mid);
+    // Ground: earthy morning dirt
+    const fg = ctx.createLinearGradient(0,mid,0,CH);
+    fg.addColorStop(0,'#5a4a2a'); fg.addColorStop(1,'#3a2e18');
+    ctx.fillStyle=fg; ctx.fillRect(0,mid,CW,CH-mid);
+  } else {
+    const cg = ctx.createLinearGradient(0,0,0,mid);
+    cg.addColorStop(0,worldCfg.ct); cg.addColorStop(1,worldCfg.cb);
+    ctx.fillStyle=cg; ctx.fillRect(0,0,CW,mid);
+    const fg = ctx.createLinearGradient(0,mid,0,CH);
+    fg.addColorStop(0,worldCfg.ft); fg.addColorStop(1,worldCfg.fb);
+    ctx.fillStyle=fg; ctx.fillRect(0,mid,CW,CH-mid);
+  }
+}
+
+// ── HUD ───────────────────────────────────────────────────────────────────
+function drawHUD() {
+  ctx.textAlign='left';
+  // HP bar
+  ctx.fillStyle='#1a0000'; ctx.fillRect(20,CH-52,200,20);
+  ctx.strokeStyle='#440000'; ctx.lineWidth=1; ctx.strokeRect(20,CH-52,200,20);
+  ctx.fillStyle='#cc2200'; ctx.fillRect(20,CH-52,200*(pl.hp/pl.maxHp),20);
+  ctx.fillStyle='#e8e0c8'; ctx.font='13px monospace';
+  ctx.fillText('HP',226,CH-36);
+
+  // Level + kills
+  ctx.font='bold 16px monospace'; ctx.fillStyle='#ffd700';
+  ctx.shadowColor='#ffaa00'; ctx.shadowBlur=6;
+  ctx.fillText(`LVL ${gs.level}`,20,36);
+  ctx.shadowBlur=0;
+  ctx.fillStyle='#e8e0c8';
+  ctx.fillText(`KILLS: ${gs.kills}`,20,56);
+
+  // Sword name (center bottom)
+  const lvl = gs.swordLevel;
+  ctx.textAlign='center';
+  ctx.font='14px monospace'; ctx.fillStyle=SWORD_COLORS[lvl];
+  ctx.shadowColor=SWORD_COLORS[lvl]; ctx.shadowBlur=8;
+  ctx.fillText(`⚔ ${SWORD_NAMES[lvl]}`, CW/2, CH-30);
+  ctx.shadowBlur=0;
+
+  // Mode badge
+  ctx.textAlign='right';
+  ctx.font='bold 13px monospace';
+  if (morning) {
+    ctx.fillStyle='#ffe066'; ctx.shadowColor='#ffcc00'; ctx.shadowBlur=8;
+    ctx.fillText('☀ MORNING', CW-20, CH-34);
+  } else {
+    ctx.fillStyle='#6688cc'; ctx.shadowColor='#4466aa'; ctx.shadowBlur=6;
+    ctx.fillText('☽ NIGHT', CW-20, CH-34);
+  }
+  ctx.shadowBlur=0;
+  ctx.fillStyle='rgba(150,150,150,0.4)'; ctx.font='10px monospace';
+  ctx.fillText('[M] toggle', CW-20, CH-20);
+
+  // Pause + help buttons (top center)
+  ctx.textAlign='center'; ctx.font='11px monospace'; ctx.fillStyle='rgba(180,180,180,0.5)';
+  ctx.fillText('[P] Pause    [H] Help    [M] Day/Night',CW/2,16);
+
+  if (!locked) {
+    ctx.fillStyle='rgba(255,220,80,0.6)';
+    ctx.fillText('CLICK canvas to enable mouse look',CW/2,33);
+  }
+}
+
+// ── Radar (rotates with player) ───────────────────────────────────────────
+function drawRadar() {
+  const cx=CW-105, cy=105, r=82;
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.clip();
+  ctx.fillStyle='rgba(0,0,0,0.72)'; ctx.fillRect(cx-r,cy-r,r*2,r*2);
+
+  const sc = r/(Math.max(MAP_W,MAP_H)/2);
+
+  // Walls
+  for (let my=0; my<MAP_H; my++)
+    for (let mx=0; mx<MAP_W; mx++)
+      if (MAP[my][mx]) {
+        const wx=mx+.5-pl.x, wy=my+.5-pl.y;
+        const rrx= wx*Math.cos(-pl.angle) - wy*Math.sin(-pl.angle);
+        const rry= wx*Math.sin(-pl.angle) + wy*Math.cos(-pl.angle);
+        if (rrx*rrx+rry*rry > r*r) continue;
+        ctx.fillStyle='rgba(90,110,130,0.75)';
+        ctx.fillRect(cx+rrx*sc-1, cy+rry*sc-1, 3, 3);
+      }
+
+  // Zombies
+  for (const z of zombies) {
+    const dx=z.x-pl.x, dy=z.y-pl.y;
+    const rx= dx*Math.cos(-pl.angle) - dy*Math.sin(-pl.angle);
+    const ry= dx*Math.sin(-pl.angle) + dy*Math.cos(-pl.angle);
+    if (rx*rx+ry*ry > r*r) continue;
+    ctx.fillStyle='#ff3333';
+    ctx.beginPath(); ctx.arc(cx+rx*sc, cy+ry*sc, 3,0,Math.PI*2); ctx.fill();
+  }
+
+  ctx.restore();
+  ctx.strokeStyle='rgba(80,200,80,0.55)'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.stroke();
+
+  // Grail dot on radar
+  if (grail) {
+    const dx=grail.x-pl.x, dy=grail.y-pl.y;
+    const rrx= dx*Math.cos(-pl.angle) - dy*Math.sin(-pl.angle);
+    const rry= dx*Math.sin(-pl.angle) + dy*Math.cos(-pl.angle);
+    const grx=cx+rrx*sc, gry=cy+rry*sc;
+    ctx.fillStyle='#ffd700'; ctx.shadowColor='#ffd700'; ctx.shadowBlur=8;
+    ctx.beginPath(); ctx.arc(Math.max(cx-r+4,Math.min(cx+r-4,grx)),
+                              Math.max(cy-r+4,Math.min(cy+r-4,gry)),5,0,Math.PI*2); ctx.fill();
+    ctx.shadowBlur=0;
+  }
+
+  // Player arrow (always pointing up = forward)
+  ctx.fillStyle='#fff';
+  ctx.beginPath(); ctx.moveTo(cx,cy-8); ctx.lineTo(cx-5,cy+5); ctx.lineTo(cx+5,cy+5); ctx.closePath(); ctx.fill();
+}
+
+// ── Warning text ──────────────────────────────────────────────────────────
+function drawWarn() {
+  if (!gs.warnText || gs.warnTimer <= 0) return;
+  const alpha = Math.min(1, gs.warnTimer/60);
+  const isGrail = gs.warnText.includes('LEVEL') || gs.warnText.includes('GRAIL');
+  const isFaster = gs.warnText === 'FASTER!';
+  const col = isGrail ? '#ffd700' : isFaster ? '#ff6600' : '#ffe066';
+  ctx.save(); ctx.globalAlpha=alpha;
+  ctx.font=`bold ${isGrail?44:40}px monospace`; ctx.textAlign='center';
+  ctx.fillStyle=col; ctx.shadowColor=col; ctx.shadowBlur=isGrail?36:28;
+  ctx.fillText(gs.warnText, CW/2, CH/2-90);
+  ctx.restore();
+}
+
+// ── World Select ──────────────────────────────────────────────────────────
+function drawWorldSelect() {
+  ctx.fillStyle='#030408'; ctx.fillRect(0,0,CW,CH);
+  // Subtle floor lines
+  for (let i=0;i<18;i++) {
+    const y=CH/2+i*20; const a=i/18;
+    ctx.strokeStyle=`rgba(30,22,10,${a*.6})`; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(CW,y); ctx.stroke();
+  }
+  const vig=ctx.createRadialGradient(CW/2,CH/2,0,CW/2,CH/2,CW*.75);
+  vig.addColorStop(0,'rgba(0,0,0,0)'); vig.addColorStop(1,'rgba(0,0,0,0.72)');
+  ctx.fillStyle=vig; ctx.fillRect(0,0,CW,CH);
+
+  ctx.textAlign='center';
+  ctx.font='bold 48px monospace'; ctx.fillStyle='#cc2200';
+  ctx.shadowColor='#ff4400'; ctx.shadowBlur=35;
+  ctx.fillText('SELECT WORLD',CW/2,58);
+  ctx.shadowBlur=0;
+
+  const cw=210, ch=230, cols=5, gap=16;
+  const totalW = cols*cw + (cols-1)*gap;
+  const startX = (CW - totalW) / 2;
+  const startY = 90;
+
+  for (let i=0; i<10; i++) {
+    const col = i%cols, row = Math.floor(i/cols);
+    const x = startX + col*(cw+gap);
+    const y = startY + row*(ch+gap);
+    const w = WORLDS[i];
+
+    // Card bg
+    ctx.fillStyle = w.col;
+    ctx.strokeStyle = i===selectedWorld ? '#ffd700' : 'rgba(255,255,255,0.13)';
+    ctx.lineWidth = i===selectedWorld ? 3 : 1;
+    ctx.shadowColor = i===selectedWorld ? '#ffd700' : 'transparent';
+    ctx.shadowBlur = i===selectedWorld ? 18 : 0;
+    ctx.beginPath(); ctx.roundRect(x,y,cw,ch,8); ctx.fill(); ctx.stroke();
+    ctx.shadowBlur=0;
+
+    // World number watermark
+    ctx.font='bold 68px monospace'; ctx.fillStyle='rgba(255,255,255,0.06)';
+    ctx.textAlign='center'; ctx.fillText(`${i+1}`,x+cw/2,y+ch-10);
+
+    // World name
+    ctx.font='bold 14px monospace'; ctx.fillStyle='#ffffff';
+    ctx.shadowColor='rgba(0,0,0,0.9)'; ctx.shadowBlur=8;
+    ctx.fillText(w.name, x+cw/2, y+22); ctx.shadowBlur=0;
+
+    // Divider
+    ctx.strokeStyle='rgba(255,255,255,0.18)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(x+12,y+30); ctx.lineTo(x+cw-12,y+30); ctx.stroke();
+
+    // Description (word-wrapped)
+    ctx.font='11px monospace'; ctx.fillStyle='rgba(220,220,210,0.75)';
+    const words = w.desc.split(' ');
+    let line='', ly=y+50;
+    for (const wd of words) {
+      const test=line+wd+' ';
+      if (ctx.measureText(test).width > cw-20 && line) {
+        ctx.fillText(line.trim(),x+cw/2,ly); ly+=16; line=wd+' ';
+      } else line=test;
+    }
+    if (line.trim()) ctx.fillText(line.trim(),x+cw/2,ly);
+
+    // "LAST PLAYED" badge for selected
+    if (i===selectedWorld) {
+      ctx.font='bold 10px monospace'; ctx.fillStyle='#ffd700';
+      ctx.fillText('LAST PLAYED',x+cw/2,y+ch-22);
+    }
+  }
+
+  ctx.textAlign='center'; ctx.font='14px monospace'; ctx.fillStyle='rgba(200,200,180,0.5)';
+  ctx.fillText('Click a world to enter   |   [H] for help',CW/2,CH-16);
+}
+
+// ── Title ─────────────────────────────────────────────────────────────────
+function drawTitle() {
+  ctx.fillStyle='#050508'; ctx.fillRect(0,0,CW,CH);
+  // Pseudo-3D floor lines
+  for (let i=0;i<24;i++) {
+    const y=CH/2+i*14; const a=i/24;
+    ctx.strokeStyle=`rgba(40,30,15,${a*.7})`; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(CW,y); ctx.stroke();
+  }
+  const vig=ctx.createRadialGradient(CW/2,CH/2,0,CW/2,CH/2,CW*.72);
+  vig.addColorStop(0,'rgba(0,0,0,0)'); vig.addColorStop(1,'rgba(0,0,0,0.88)');
+  ctx.fillStyle=vig; ctx.fillRect(0,0,CW,CH);
+
+  ctx.textAlign='center';
+  ctx.font='bold 78px monospace'; ctx.fillStyle='#cc2200';
+  ctx.shadowColor='#ff4400'; ctx.shadowBlur=45;
+  ctx.fillText('ZOMBIE SWORD',CW/2,CH/2-85);
+  ctx.shadowBlur=0;
+  ctx.font='18px monospace'; ctx.fillStyle='#e8e0c8';
+  ctx.fillText('Survive the night. Grow the blade.',CW/2,CH/2-28);
+  ctx.font='14px monospace'; ctx.fillStyle='#888';
+  ctx.fillText('WASD / Arrows = move  |  A/D = turn  |  CLICK = mouse look + swing  |  SPACE = swing',CW/2,CH/2+20);
+  ctx.font='13px monospace'; ctx.fillStyle='#666';
+  ctx.fillText('Press  H  for full controls & game guide',CW/2,CH/2+48);
+  blinkT++;
+  if (Math.floor(blinkT/40)%2===0) {
+    ctx.font='bold 24px monospace'; ctx.fillStyle='#ffcc00';
+    ctx.shadowColor='#ffcc00'; ctx.shadowBlur=12;
+    ctx.fillText('CLICK TO CHOOSE WORLD',CW/2,CH/2+100);
+    ctx.shadowBlur=0;
+  }
+}
+
+// ── Game over ─────────────────────────────────────────────────────────────
+function drawGameOver() {
+  ctx.fillStyle='rgba(0,0,0,0.82)'; ctx.fillRect(0,0,CW,CH);
+  ctx.textAlign='center';
+  ctx.font='bold 88px monospace'; ctx.fillStyle='#cc0000';
+  ctx.shadowColor='#ff0000'; ctx.shadowBlur=45;
+  ctx.fillText('YOU DIED',CW/2,CH/2-110);
+  ctx.shadowBlur=0;
+  ctx.font='bold 28px monospace'; ctx.fillStyle='#ffd700';
+  ctx.shadowColor='#ffaa00'; ctx.shadowBlur=10;
+  ctx.fillText(`LEVEL ${gs.level}`,CW/2,CH/2-54);
+  ctx.shadowBlur=0;
+  ctx.font='22px monospace'; ctx.fillStyle='#e8e0c8';
+  ctx.fillText(`KILLS: ${gs.kills}`,CW/2,CH/2-22);
+  ctx.font='18px monospace'; ctx.fillStyle=SWORD_COLORS[gs.swordLevel];
+  ctx.fillText(SWORD_NAMES[gs.swordLevel],CW/2,CH/2+8);
+  blinkT++;
+  if (Math.floor(blinkT/40)%2===0) {
+    ctx.font='18px monospace'; ctx.fillStyle='#e8e0c8';
+    ctx.fillText('CLICK FOR WORLD SELECT',CW/2,CH/2+40);
+  }
+
+  // Scoreboard
+  const scores = getScores();
+  if (scores.length > 0) {
+    const bx=CW/2-210, by=CH/2+68, bw=420, rowH=22;
+    const bh=30+scores.length*rowH+10;
+    ctx.fillStyle='rgba(0,0,0,0.7)'; ctx.strokeStyle='rgba(200,180,50,0.45)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.roundRect(bx,by,bw,bh,7); ctx.fill(); ctx.stroke();
+    ctx.font='bold 13px monospace'; ctx.fillStyle='#ffd700'; ctx.textAlign='center';
+    ctx.fillText('— HIGH SCORES —',CW/2,by+18);
+    for (let i=0;i<scores.length;i++) {
+      const s=scores[i]; const ry=by+30+i*rowH;
+      ctx.fillStyle=i===0?'#ffd700':'#aaa';
+      ctx.font=`${i===0?'bold ':''}12px monospace`;
+      ctx.textAlign='right'; ctx.fillText(`${i+1}.`,CW/2-175,ry);
+      ctx.textAlign='left';
+      ctx.fillText(`${s.kills} kills`,CW/2-160,ry);
+      ctx.fillText(`Lv${s.level}`,CW/2-30,ry);
+      ctx.fillText(SWORD_NAMES[s.sword]||'',CW/2+30,ry);
+      ctx.fillStyle='#555'; ctx.font='10px monospace';
+      ctx.fillText(s.date||'',CW/2+150,ry);
+    }
+    ctx.textAlign='center';
+  }
+}
+
+// ── Pause overlay ─────────────────────────────────────────────────────────
+function drawPause() {
+  ctx.fillStyle='rgba(0,0,0,0.62)'; ctx.fillRect(0,0,CW,CH);
+  ctx.textAlign='center';
+  ctx.font='bold 72px monospace'; ctx.fillStyle='#e8e0c8';
+  ctx.shadowColor='#aaa'; ctx.shadowBlur=30;
+  ctx.fillText('PAUSED',CW/2,CH/2-20);
+  ctx.shadowBlur=0;
+  ctx.font='16px monospace'; ctx.fillStyle='#888';
+  ctx.fillText('Press  P  or  ESC  to resume',CW/2,CH/2+28);
+  ctx.fillText('Press  H  for controls & help',CW/2,CH/2+54);
+}
+
+// ── Help / instructions overlay ───────────────────────────────────────────
+function drawHelp() {
+  ctx.fillStyle='rgba(0,0,8,0.92)'; ctx.fillRect(0,0,CW,CH);
+  ctx.textAlign='center';
+  ctx.font='bold 34px monospace'; ctx.fillStyle='#ffd700';
+  ctx.shadowColor='#ffaa00'; ctx.shadowBlur=18;
+  ctx.fillText('ZOMBIE SWORD — HOW TO PLAY',CW/2,55);
+  ctx.shadowBlur=0;
+
+  const col1=CW/2-380, col2=CW/2+30;
+  const entries = [
+    ['MOVEMENT',''],
+    ['W / ↑','Move forward'],
+    ['S / ↓','Move backward'],
+    ['A / D (unlocked)','Rotate left / right'],
+    ['← →  (arrows)','Rotate left / right'],
+    ['A / D (mouse locked)','Strafe left / right'],
+    ['',''],
+    ['COMBAT',''],
+    ['Left Click (locked)','Swing sword'],
+    ['Space','Swing sword'],
+    ['',''],
+    ['GAME',''],
+    ['Click canvas','Enable mouse look'],
+    ['P or Esc','Pause / resume'],
+    ['H','This help screen'],
+    ['M','Toggle morning / night'],
+  ];
+
+  let y=95;
+  for (const [key, desc] of entries) {
+    if (!desc) {
+      ctx.font='bold 14px monospace'; ctx.fillStyle='#cc8800'; ctx.textAlign='left';
+      ctx.fillText(key,col1,y);
+    } else {
+      ctx.font='13px monospace'; ctx.fillStyle='#88aaff'; ctx.textAlign='right';
+      ctx.fillText(key,col2-10,y);
+      ctx.fillStyle='#ddd'; ctx.textAlign='left';
+      ctx.fillText(desc,col2+10,y);
+    }
+    y+=24;
+  }
+
+  // Game lore / objectives
+  const infoX=CW/2+20, infoW=340, infoY=95;
+  ctx.fillStyle='rgba(255,255,255,0.05)'; ctx.strokeStyle='rgba(255,255,255,0.1)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.roundRect(infoX,infoY-18,infoW,CH-infoY-20,8); ctx.fill(); ctx.stroke();
+  ctx.textAlign='center'; ctx.font='bold 14px monospace'; ctx.fillStyle='#ff8844';
+  ctx.fillText('OBJECTIVE',infoX+infoW/2,infoY+2);
+  const lines=[
+    'Survive as long as possible.',
+    'Kill zombies to grow your sword.',
+    '',
+    'Every 10 kills: ⚔ sword upgrades',
+    '  Dagger → Short Sword',
+    '  → Longsword → Greatsword',
+    '  → Claymore  (most kills)',
+    '',
+    'Every 10 kills: ✦ Golden Grail',
+    '  Find it for +level & full heal.',
+    '  Shown on your radar.',
+    '',
+    'Zombies get faster every 5 kills.',
+    'Higher levels → tougher zombies',
+    '  (need multiple sword hits)',
+    '',
+    'Sword levels unlock elements:',
+    '  Lv1 Short Sword — Magic',
+    '  Lv2 Longsword  — Electric',
+    '  Lv3 Greatsword  — Fire',
+    '  Lv4 Claymore    — Void',
+  ];
+  ctx.font='12px monospace'; ctx.fillStyle='#ccc'; ctx.textAlign='left';
+  let ly=infoY+24;
+  for (const l of lines) { ctx.fillText(l,infoX+16,ly); ly+=19; }
+
+  ctx.textAlign='center'; ctx.font='bold 16px monospace'; ctx.fillStyle='#ffcc00';
+  ctx.shadowColor='#ffaa00'; ctx.shadowBlur=10;
+  ctx.fillText('Press  H  or  Esc  to close',CW/2,CH-22);
+  ctx.shadowBlur=0;
+}
+
+// ── Draw ──────────────────────────────────────────────────────────────────
+function draw() {
+  if (!gs || gs.phase==='title') { drawTitle(); return; }
+  if (gs.phase==='worldselect') { drawWorldSelect(); return; }
+
+  let sx=0, sy=0;
+  if (gs.shake>0) { sx=(Math.random()-.5)*2*gs.shakeAmt; sy=(Math.random()-.5)*2*gs.shakeAmt; }
+
+  // 1. Ceiling + floor
+  drawCF();
+
+  // 2. Walls
+  ctx.save(); if(gs.shake>0) ctx.translate(sx,sy);
+  castRays();
+  ctx.restore();
+
+  // 3. Sprites + grail
+  ctx.save(); if(gs.shake>0) ctx.translate(sx,sy);
+  drawSprites();
+  drawGrail();
+  ctx.restore();
+
+  // 4. Torch + vignette (drawn after world, before HUD)
+  drawTorch();
+
+  // 5. Blood particles
+  for (const p of particles) {
+    ctx.save(); ctx.globalAlpha=p.life; ctx.fillStyle=p.col;
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill(); ctx.restore();
+  }
+
+  // 6. Flash overlays
+  if (gs.flash>0) {
+    ctx.save(); ctx.globalAlpha=(gs.flash/8)*.22;
+    ctx.fillStyle='#fff'; ctx.fillRect(0,0,CW,CH); ctx.restore();
+  }
+  if (gs.goldenFlash>0) {
+    ctx.save(); ctx.globalAlpha=(gs.goldenFlash/14)*.35;
+    ctx.fillStyle='#ffd700'; ctx.fillRect(0,0,CW,CH); ctx.restore();
+  }
+
+  // 6b. Disco flash during zombie dance
+  if (gs.danceTimer > 0) {
+    const dp = gameTime * 0.0025;
+    const fade = Math.min(1, gs.danceTimer / 400);
+    const r = Math.round((Math.sin(dp*2.3)*0.5+0.5)*180);
+    const g = Math.round((Math.sin(dp*1.7+2)*0.5+0.5)*120);
+    const b = Math.round((Math.sin(dp*1.1+4)*0.5+0.5)*200);
+    ctx.save(); ctx.globalAlpha = fade * 0.07;
+    ctx.fillStyle = `rgb(${r},${g},${b})`; ctx.fillRect(0,0,CW,CH);
+    ctx.restore();
+  }
+
+  // 7. Sword (screen space)
+  drawSword();
+
+  // 8. HUD + radar + warning
+  drawHUD(); drawRadar(); drawWarn();
+
+  if (gs.phase==='gameover') drawGameOver();
+  if (gs.paused) drawPause();
+  if (showHelp) drawHelp();
+}
+
+// ── Input ─────────────────────────────────────────────────────────────────
+function setArrow(k, v) {
+  // Accept both e.code ('ArrowUp') and e.key ('ArrowUp') — same strings here
+  if (k==='ArrowUp')    arrow.up    = v;
+  if (k==='ArrowDown')  arrow.down  = v;
+  if (k==='ArrowLeft')  arrow.left  = v;
+  if (k==='ArrowRight') arrow.right = v;
+}
+
+document.addEventListener('keydown', e => {
+  setArrow(e.code, true);
+  setArrow(e.key,  true);
+  if (arrow.up || arrow.down || arrow.left || arrow.right) e.preventDefault();
+  if (e.code === 'Space') e.preventDefault();
+  keys[e.code] = true;
+
+  // Help toggle (H) — works from any screen
+  if (e.code==='KeyH') {
+    showHelp = !showHelp;
+    if (showHelp && gs?.phase==='playing' && !gs.paused) gs.paused=true;
+    if (!showHelp && gs?.phase==='playing') gs.paused=false;
+    return;
+  }
+  // Close help with Escape too
+  if (e.code==='Escape' && showHelp) { showHelp=false; gs && (gs.paused=false); return; }
+  // Pause toggle (P or Escape) — only during active play
+  if ((e.code==='KeyP' || e.code==='Escape') && gs?.phase==='playing') {
+    gs.paused = !gs.paused;
+    if (gs.paused && locked) document.exitPointerLock();
+    return;
+  }
+  // Skip other actions when paused or showing help
+  if (gs?.paused || showHelp) return;
+
+  if (e.code==='Space' && gs?.phase==='playing' && !sw.on) {
+    sw.on=true; sw.t=0; sw.hits=new Set(); playSwing(gs.swordLevel);
+  }
+  if (e.code==='KeyM') morning = !morning;
+});
+document.addEventListener('keyup', e => {
+  setArrow(e.code, false);
+  setArrow(e.key,  false);
+  keys[e.code] = false;
+});
+
+document.addEventListener('pointerlockchange', () => {
+  locked = document.pointerLockElement === canvas;
+});
+document.addEventListener('mousemove', e => {
+  if (locked && gs?.phase==='playing') pl.angle += e.movementX*.002;
+});
+
+canvas.addEventListener('click', e => {
+  if (showHelp) { showHelp=false; gs && (gs.paused=false); return; }
+  if (!gs || gs.phase==='title') { gs={phase:'worldselect'}; blinkT=0; return; }
+  if (gs.phase==='gameover')     { gs={phase:'worldselect'}; blinkT=0; return; }
+  if (gs.phase==='worldselect') {
+    const rect=canvas.getBoundingClientRect();
+    const mx=(e.clientX-rect.left)*(CW/rect.width);
+    const my=(e.clientY-rect.top)*(CH/rect.height);
+    const cw=210, ch=230, cols=5, gap=16;
+    const totalW=cols*cw+(cols-1)*gap, startX=(CW-totalW)/2, startY=90;
+    for (let i=0;i<10;i++) {
+      const col=i%cols, row=Math.floor(i/cols);
+      const x=startX+col*(cw+gap), y=startY+row*(ch+gap);
+      if (mx>=x&&mx<=x+cw&&my>=y&&my<=y+ch) {
+        selectedWorld=i; init(i); startMusic(); canvas.requestPointerLock(); return;
+      }
+    }
+    return;
+  }
+  if (gs.phase==='playing') {
+    if (gs.paused) { gs.paused=false; canvas.requestPointerLock(); return; }
+    if (!locked) { canvas.requestPointerLock(); return; }
+    if (!sw.on)  { sw.on=true; sw.t=0; sw.hits=new Set(); playSwing(gs.swordLevel); }
+  }
+});
+
+// ── Scoreboard ────────────────────────────────────────────────────────────
+function saveScore() {
+  const scores = getScores();
+  scores.push({ kills:gs.kills, level:gs.level, sword:gs.swordLevel,
+                date:new Date().toLocaleDateString() });
+  scores.sort((a,b) => b.kills - a.kills);
+  if (scores.length > 5) scores.length = 5;
+  try { localStorage.setItem('zombieSwordScores', JSON.stringify(scores)); } catch(e) {}
+}
+
+function getScores() {
+  try { return JSON.parse(localStorage.getItem('zombieSwordScores') || '[]'); }
+  catch(e) { return []; }
+}
+
+// ── Loop ──────────────────────────────────────────────────────────────────
+function loop(ts) {
+  if (!lastTs) lastTs = ts;
+  let dt = Math.min(ts-lastTs, 100);
+  lastTs = ts;
+  if (gs?.phase==='playing' && !gs.paused) { gameTime += dt; update(dt); }
+  draw();
+  requestAnimationFrame(loop);
+}
+
+gs = null;
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
