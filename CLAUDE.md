@@ -1,5 +1,9 @@
 # Zombie Sword — Project Guide for Claude
 
+## Live URL
+**https://danik75.github.io/zombie-sword/**
+Deployed via GitHub Pages (main branch root). Any `git push` to `main` auto-redeploys within ~60s.
+
 ## What this is
 Browser-based first-person DOOM-style zombie survival game. Single `index.html` (pure HTML5 Canvas + vanilla JS, no npm deps). Node.js HTTP server (`index.js`) serves it on port 3000.
 
