@@ -1444,101 +1444,94 @@ function drawSword() {
   ctx.shadowBlur=0;
   ctx.restore();
 
-  // ── Gauntlet hand ───────────────────────────────────────────
+  // ── Hand + black sweatshirt sleeve ──────────────────────────
   ctx.save();
-  const skinHue='#c8a87e', armorCol='#5c6c80', armorHi='#8899b0';
-  // Forearm vambrace
-  const vG=ctx.createLinearGradient(-16,36,16,36);
-  vG.addColorStop(0,armorCol); vG.addColorStop(.4,armorHi); vG.addColorStop(1,armorCol);
-  ctx.fillStyle=vG; ctx.shadowColor='rgba(100,120,160,0.4)'; ctx.shadowBlur=6;
-  ctx.beginPath(); ctx.roundRect(-14,36,28,88,5); ctx.fill(); ctx.shadowBlur=0;
-  ctx.fillStyle='rgba(180,200,240,0.2)';
-  ctx.beginPath(); ctx.roundRect(-8,40,6,76,3); ctx.fill();
-  ctx.fillStyle='#3a4a5a';
-  for (const [rx,ry] of [[-10,44],[8,44],[-10,78],[8,78],[-10,108],[8,108]]){ctx.beginPath();ctx.arc(rx,ry,2,0,Math.PI*2);ctx.fill();}
-  // Wrist band
-  const wG=ctx.createLinearGradient(-15,33,15,33);
-  wG.addColorStop(0,'#3a4a5a'); wG.addColorStop(.5,'#7a8a9a'); wG.addColorStop(1,'#3a4a5a');
-  ctx.fillStyle=wG; ctx.beginPath(); ctx.roundRect(-15,32,30,8,3); ctx.fill();
-  // Gauntlet back plate
-  const gbG=ctx.createLinearGradient(-14,0,14,0);
-  gbG.addColorStop(0,armorCol); gbG.addColorStop(.45,armorHi); gbG.addColorStop(1,armorCol);
-  ctx.fillStyle=gbG; ctx.shadowColor='rgba(120,140,180,0.3)'; ctx.shadowBlur=5;
-  ctx.beginPath(); ctx.roundRect(-14,0,28,30,4); ctx.fill(); ctx.shadowBlur=0;
-  ctx.strokeStyle=armorHi; ctx.lineWidth=1.5;
-  for (const kx of [-8,-2,4,10]){ctx.fillStyle=armorCol;ctx.beginPath();ctx.roundRect(kx,2,4,10,2);ctx.fill();ctx.stroke();}
-  ctx.fillStyle='rgba(180,200,240,0.18)'; ctx.beginPath(); ctx.roundRect(-12,2,10,12,3); ctx.fill();
+  const skinHue='#c8a87e', skinShadow='#a8845a';
+  const sweat='#111111', sweatHi='#2a2a2a', sweatMid='#1c1c1c';
+
+  // === HAND (bare skin) ===
   // Palm
-  ctx.fillStyle=skinHue; ctx.beginPath(); ctx.roundRect(-14,6,15,22,4); ctx.fill();
-  ctx.fillStyle='rgba(0,0,0,0.22)'; ctx.beginPath(); ctx.roundRect(-13,8,12,18,3); ctx.fill();
+  const palmG=ctx.createLinearGradient(-14,0,14,0);
+  palmG.addColorStop(0,skinShadow); palmG.addColorStop(.4,skinHue); palmG.addColorStop(1,skinShadow);
+  ctx.fillStyle=palmG; ctx.shadowColor='rgba(0,0,0,0.5)'; ctx.shadowBlur=6;
+  ctx.beginPath(); ctx.roundRect(-14,0,28,30,5); ctx.fill(); ctx.shadowBlur=0;
+  // Knuckle lines
+  ctx.strokeStyle='rgba(0,0,0,0.2)'; ctx.lineWidth=1;
+  for (const ky of [8,16,24]) { ctx.beginPath(); ctx.moveTo(-10,ky); ctx.lineTo(10,ky); ctx.stroke(); }
   // Fingers
   for (let f=0;f<4;f++){
-    const fy=6+f*5;
-    ctx.fillStyle=skinHue; ctx.beginPath(); ctx.roundRect(-18,fy,6,4,2); ctx.fill();
-    ctx.fillStyle='rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.roundRect(-18,fy,6,2,1); ctx.fill();
-    ctx.fillStyle='#8899aa'; ctx.beginPath(); ctx.roundRect(-20,fy+.5,3,3,1); ctx.fill();
+    const fx=-12+f*7, palmG2=ctx.createLinearGradient(fx,0,fx+5,0);
+    palmG2.addColorStop(0,skinShadow); palmG2.addColorStop(.5,skinHue); palmG2.addColorStop(1,skinShadow);
+    ctx.fillStyle=palmG2; ctx.beginPath(); ctx.roundRect(fx,-12,5,14,3); ctx.fill();
+    ctx.strokeStyle='rgba(0,0,0,0.15)'; ctx.lineWidth=0.8;
+    ctx.beginPath(); ctx.moveTo(fx+2,-12); ctx.lineTo(fx+2,-2); ctx.stroke();
   }
   // Thumb
-  ctx.fillStyle=skinHue; ctx.beginPath(); ctx.roundRect(2,-2,9,14,4); ctx.fill();
-  ctx.fillStyle='rgba(0,0,0,0.2)'; ctx.beginPath(); ctx.roundRect(2,-2,9,7,3); ctx.fill();
-  ctx.fillStyle='#8899aa'; ctx.beginPath(); ctx.roundRect(3,-3,7,5,2); ctx.fill();
+  const thG=ctx.createLinearGradient(12,0,20,0);
+  thG.addColorStop(0,skinShadow); thG.addColorStop(.5,skinHue); thG.addColorStop(1,skinShadow);
+  ctx.fillStyle=thG; ctx.beginPath(); ctx.roundRect(12,-6,9,18,4); ctx.fill();
 
-  // === ELBOW JOINT ===
-  const elbG=ctx.createRadialGradient(-4,127,2,0,124,20);
-  elbG.addColorStop(0,armorHi); elbG.addColorStop(.5,armorCol); elbG.addColorStop(1,'#22303e');
-  ctx.fillStyle=elbG; ctx.shadowColor='rgba(0,0,0,0.65)'; ctx.shadowBlur=10;
-  ctx.beginPath(); ctx.ellipse(0,126,19,15,0,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
-  ctx.strokeStyle=armorHi; ctx.lineWidth=1.5; ctx.globalAlpha=0.45;
-  ctx.beginPath(); ctx.ellipse(-3,123,13,10,-0.2,0,Math.PI*2); ctx.stroke(); ctx.globalAlpha=1;
-  // Elbow center bolt
-  ctx.fillStyle='#22303e'; ctx.beginPath(); ctx.arc(0,126,4,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle=armorHi; ctx.beginPath(); ctx.arc(-1.5,124.5,1.8,0,Math.PI*2); ctx.fill();
-
-  // === UPPER ARM ===
-  const uaG=ctx.createLinearGradient(-20,138,20,138);
-  uaG.addColorStop(0,'#1e2c3a'); uaG.addColorStop(.35,armorHi); uaG.addColorStop(.65,armorCol); uaG.addColorStop(1,'#1e2c3a');
-  ctx.fillStyle=uaG; ctx.shadowColor='rgba(0,0,0,0.5)'; ctx.shadowBlur=8;
-  ctx.beginPath();
-  ctx.moveTo(-17,134); ctx.lineTo(17,134);
-  ctx.bezierCurveTo(21,148,23,168,21,195);
-  ctx.lineTo(-21,195);
-  ctx.bezierCurveTo(-23,168,-21,148,-17,134);
-  ctx.closePath(); ctx.fill(); ctx.shadowBlur=0;
-  // Upper arm highlight strip
-  ctx.fillStyle='rgba(180,200,240,0.14)';
-  ctx.beginPath(); ctx.roundRect(-12,138,9,52,5); ctx.fill();
-  // Upper arm panel lines
-  ctx.strokeStyle='rgba(0,0,0,0.35)'; ctx.lineWidth=1;
-  ctx.beginPath(); ctx.moveTo(-8,145); ctx.lineTo(-8,188); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(8,145); ctx.lineTo(8,188); ctx.stroke();
-  // Upper arm rivets
-  ctx.fillStyle='#22303e';
-  for (const [rx,ry] of [[-13,144],[11,144],[-13,172],[11,172],[-13,188],[11,188]]) {
-    ctx.beginPath(); ctx.arc(rx,ry,2.5,0,Math.PI*2); ctx.fill();
-    ctx.fillStyle=armorHi; ctx.beginPath(); ctx.arc(rx-.8,ry-.8,1,0,Math.PI*2); ctx.fill();
-    ctx.fillStyle='#22303e';
+  // === SWEATSHIRT FOREARM SLEEVE ===
+  const sleeveG=ctx.createLinearGradient(-18,36,18,36);
+  sleeveG.addColorStop(0,sweat); sleeveG.addColorStop(.3,sweatHi); sleeveG.addColorStop(.7,sweatMid); sleeveG.addColorStop(1,sweat);
+  ctx.fillStyle=sleeveG; ctx.shadowColor='rgba(0,0,0,0.6)'; ctx.shadowBlur=8;
+  ctx.beginPath(); ctx.roundRect(-16,28,32,96,6); ctx.fill(); ctx.shadowBlur=0;
+  // Fabric fold lines — subtle lighter curves
+  ctx.strokeStyle='rgba(60,60,60,0.6)'; ctx.lineWidth=1.2;
+  for (const fy of [50,68,86,104]) {
+    ctx.beginPath(); ctx.moveTo(-14,fy); ctx.quadraticCurveTo(0,fy+3,14,fy); ctx.stroke();
+  }
+  // Cuff at wrist — ribbed band
+  const cuffG=ctx.createLinearGradient(-16,28,16,28);
+  cuffG.addColorStop(0,'#0a0a0a'); cuffG.addColorStop(.5,'#222'); cuffG.addColorStop(1,'#0a0a0a');
+  ctx.fillStyle=cuffG; ctx.beginPath(); ctx.roundRect(-16,28,32,10,4); ctx.fill();
+  ctx.strokeStyle='rgba(50,50,50,0.8)'; ctx.lineWidth=1;
+  for (const cy of [31,34,37]) {
+    ctx.beginPath(); ctx.moveTo(-14,cy); ctx.lineTo(14,cy); ctx.stroke();
   }
 
-  // === PAULDRON (shoulder guard — bleeds off screen, sells the scale) ===
-  const pauG=ctx.createRadialGradient(-9,204,4,0,210,40);
-  pauG.addColorStop(0,armorHi); pauG.addColorStop(.45,armorCol); pauG.addColorStop(1,'#182028');
-  ctx.fillStyle=pauG; ctx.shadowColor='rgba(0,0,0,0.8)'; ctx.shadowBlur=16;
+  // === ELBOW (soft fabric bunching) ===
+  const elbG=ctx.createRadialGradient(-3,127,3,0,124,22);
+  elbG.addColorStop(0,sweatHi); elbG.addColorStop(.5,sweatMid); elbG.addColorStop(1,sweat);
+  ctx.fillStyle=elbG; ctx.shadowColor='rgba(0,0,0,0.55)'; ctx.shadowBlur=10;
+  ctx.beginPath(); ctx.ellipse(0,126,20,16,0,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
+  // Elbow wrinkle arcs
+  ctx.strokeStyle='rgba(50,50,50,0.5)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.arc(0,126,10,Math.PI*.6,Math.PI*1.4); ctx.stroke();
+  ctx.beginPath(); ctx.arc(0,126,15,Math.PI*.65,Math.PI*1.35); ctx.stroke();
+
+  // === UPPER ARM SLEEVE ===
+  const uaG=ctx.createLinearGradient(-22,138,22,138);
+  uaG.addColorStop(0,sweat); uaG.addColorStop(.3,sweatHi); uaG.addColorStop(.7,sweatMid); uaG.addColorStop(1,sweat);
+  ctx.fillStyle=uaG; ctx.shadowColor='rgba(0,0,0,0.5)'; ctx.shadowBlur=8;
   ctx.beginPath();
-  ctx.moveTo(-19,192);
-  ctx.bezierCurveTo(-30,198,-44,210,-44,235);
-  ctx.lineTo(44,235);
-  ctx.bezierCurveTo(44,210,30,198,19,192);
+  ctx.moveTo(-18,134); ctx.lineTo(18,134);
+  ctx.bezierCurveTo(23,150,25,170,23,198);
+  ctx.lineTo(-23,198);
+  ctx.bezierCurveTo(-25,170,-23,150,-18,134);
   ctx.closePath(); ctx.fill(); ctx.shadowBlur=0;
-  // Pauldron scallop highlight
-  ctx.fillStyle='rgba(180,200,240,0.16)';
+  // Fabric folds on upper arm
+  ctx.strokeStyle='rgba(50,50,50,0.45)'; ctx.lineWidth=1.2;
+  for (const uy of [148,162,176,190]) {
+    ctx.beginPath(); ctx.moveTo(-16,uy); ctx.quadraticCurveTo(0,uy+4,16,uy); ctx.stroke();
+  }
+  // Subtle highlight on front face
+  ctx.fillStyle='rgba(40,40,40,0.35)';
+  ctx.beginPath(); ctx.roundRect(-14,138,10,56,5); ctx.fill();
+
+  // === SHOULDER (sweatshirt bulk — bleeds off screen) ===
+  const shouG=ctx.createRadialGradient(-8,206,5,0,212,44);
+  shouG.addColorStop(0,sweatHi); shouG.addColorStop(.5,sweatMid); shouG.addColorStop(1,sweat);
+  ctx.fillStyle=shouG; ctx.shadowColor='rgba(0,0,0,0.8)'; ctx.shadowBlur=18;
   ctx.beginPath();
-  ctx.moveTo(-14,194); ctx.bezierCurveTo(-24,200,-32,212,-30,228);
-  ctx.lineTo(-12,228); ctx.bezierCurveTo(-11,213,-9,201,-10,195);
-  ctx.closePath(); ctx.fill();
-  // Pauldron rim
-  ctx.strokeStyle=armorHi; ctx.lineWidth=2; ctx.globalAlpha=0.35;
-  ctx.beginPath(); ctx.moveTo(-19,192); ctx.bezierCurveTo(-30,198,-44,210,-44,235); ctx.stroke();
-  ctx.globalAlpha=1;
+  ctx.moveTo(-20,194);
+  ctx.bezierCurveTo(-34,202,-50,215,-50,240);
+  ctx.lineTo(50,240);
+  ctx.bezierCurveTo(50,215,34,202,20,194);
+  ctx.closePath(); ctx.fill(); ctx.shadowBlur=0;
+  // Shoulder seam line
+  ctx.strokeStyle='rgba(40,40,40,0.6)'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(-18,196); ctx.bezierCurveTo(-28,204,-38,214,-40,232); ctx.stroke();
 
   ctx.restore();
 
