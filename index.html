@@ -342,6 +342,7 @@ const arrow = { up:false, down:false, left:false, right:false };
 let locked = false;
 let morning = false;
 let showHelp = false;
+let showLeader = false;
 
 function na(a) { return ((a % (Math.PI*2)) + Math.PI*2) % (Math.PI*2); }
 function ease(t) { return t < .5 ? 2*t*t : -1+(4-2*t)*t; }
@@ -2002,6 +2003,8 @@ function drawGameOver() {
     ctx.font='18px monospace'; ctx.fillStyle='#e8e0c8';
     ctx.fillText('CLICK FOR WORLD SELECT',CW/2,CH/2+40);
   }
+  ctx.font='13px monospace'; ctx.fillStyle='#44ccff';
+  ctx.fillText('Press  L  for full leaderboard',CW/2,CH/2+62);
 
   // Scoreboard
   const scores = getScores();
@@ -2042,6 +2045,10 @@ function drawPause() {
   ctx.font='bold 16px monospace'; ctx.fillStyle='#ffcc44';
   ctx.shadowColor='#ffaa00'; ctx.shadowBlur=8;
   ctx.fillText('Press  Q  to choose a new world',CW/2,CH/2+86);
+  ctx.shadowBlur=0;
+  ctx.font='bold 16px monospace'; ctx.fillStyle='#44ccff';
+  ctx.shadowColor='#0088cc'; ctx.shadowBlur=8;
+  ctx.fillText('Press  L  for leaderboard',CW/2,CH/2+114);
   ctx.shadowBlur=0;
 }
 
@@ -2127,6 +2134,88 @@ function drawHelp() {
   ctx.shadowBlur=0;
 }
 
+// ── Leaderboard overlay ───────────────────────────────────────────────────
+function drawLeaderboard() {
+  ctx.fillStyle='rgba(0,0,8,0.94)'; ctx.fillRect(0,0,CW,CH);
+  ctx.textAlign='center';
+  ctx.font='bold 52px monospace'; ctx.fillStyle='#ffd700';
+  ctx.shadowColor='#ffaa00'; ctx.shadowBlur=30;
+  ctx.fillText('LEADERBOARD',CW/2,64);
+  ctx.shadowBlur=0;
+
+  const scores = getScores();
+  const medals = ['🥇','🥈','🥉'];
+  const bw=700, bx=(CW-bw)/2;
+  const rowH=44, headerY=100, startY=130;
+
+  // Table header
+  ctx.font='bold 13px monospace'; ctx.fillStyle='rgba(255,215,0,0.6)'; ctx.textAlign='left';
+  ctx.fillText('#',    bx+10,  headerY);
+  ctx.fillText('KILLS',bx+70,  headerY);
+  ctx.fillText('LEVEL',bx+200, headerY);
+  ctx.fillText('SWORD',bx+300, headerY);
+  ctx.fillText('WORLD',bx+460, headerY);
+  ctx.fillText('DATE', bx+608, headerY);
+  ctx.strokeStyle='rgba(255,215,0,0.25)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(bx,headerY+6); ctx.lineTo(bx+bw,headerY+6); ctx.stroke();
+
+  if (scores.length === 0) {
+    ctx.font='18px monospace'; ctx.fillStyle='#555'; ctx.textAlign='center';
+    ctx.fillText('No scores yet — go kill some zombies!', CW/2, startY+60);
+  }
+
+  for (let i=0;i<scores.length;i++) {
+    const s = scores[i];
+    const ry = startY + i * rowH;
+    const isTop = i < 3;
+
+    // Row background
+    ctx.fillStyle = i%2===0 ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.2)';
+    ctx.beginPath(); ctx.roundRect(bx, ry-24, bw, rowH-2, 4); ctx.fill();
+    if (isTop) {
+      ctx.strokeStyle = ['rgba(255,215,0,0.4)','rgba(192,192,192,0.35)','rgba(205,127,50,0.35)'][i];
+      ctx.lineWidth=1; ctx.beginPath(); ctx.roundRect(bx,ry-24,bw,rowH-2,4); ctx.stroke();
+    }
+
+    // Rank
+    ctx.font = `bold ${isTop?16:13}px monospace`;
+    ctx.fillStyle = isTop ? ['#ffd700','#c0c0c0','#cd7f32'][i] : '#666';
+    ctx.textAlign='left';
+    ctx.fillText(medals[i] ?? `${i+1}.`, bx+8, ry);
+
+    // Kills — big highlight for top score
+    ctx.font = `bold ${isTop?20:15}px monospace`;
+    ctx.fillStyle = isTop ? '#ffffff' : '#cccccc';
+    if (isTop) { ctx.shadowColor=ctx.fillStyle; ctx.shadowBlur=8; }
+    ctx.fillText(s.kills, bx+70, ry);
+    ctx.shadowBlur=0;
+
+    // Level
+    ctx.font='bold 14px monospace'; ctx.fillStyle='#ffd700';
+    ctx.fillText(`Lv ${s.level}`, bx+200, ry);
+
+    // Sword
+    ctx.font='13px monospace'; ctx.fillStyle=SWORD_COLORS[s.sword]||'#aaa';
+    ctx.fillText(SWORD_NAMES[s.sword]||'', bx+300, ry);
+
+    // World
+    ctx.fillStyle='#8888cc'; ctx.font='11px monospace';
+    ctx.fillText((s.world||'').substring(0,16), bx+460, ry);
+
+    // Date
+    ctx.fillStyle='#555'; ctx.font='10px monospace';
+    ctx.fillText(s.date||'', bx+608, ry);
+  }
+
+  // Clear button hint
+  ctx.textAlign='center'; ctx.font='bold 13px monospace'; ctx.fillStyle='#cc4444';
+  ctx.fillText('Press  C  to clear scores',CW/2,startY+scores.length*rowH+30);
+  ctx.font='bold 15px monospace'; ctx.fillStyle='#ffcc00';
+  ctx.shadowColor='#ffaa00'; ctx.shadowBlur=8;
+  ctx.fillText('Press  L  or  Esc  to close',CW/2,CH-22);
+  ctx.shadowBlur=0;
+}
+
 // ── Draw ──────────────────────────────────────────────────────────────────
 function draw() {
   if (!gs || gs.phase==='title') { drawTitle(); return; }
@@ -2189,6 +2278,7 @@ function draw() {
   if (gs.phase==='gameover') drawGameOver();
   if (gs.paused) drawPause();
   if (showHelp) drawHelp();
+  if (showLeader) drawLeaderboard();
 }
 
 // ── Input ─────────────────────────────────────────────────────────────────
@@ -2216,6 +2306,20 @@ document.addEventListener('keydown', e => {
   }
   // Close help with Escape too
   if (e.code==='Escape' && showHelp) { showHelp=false; gs && (gs.paused=false); return; }
+  // L — leaderboard toggle (anytime except title)
+  if (e.code==='KeyL') {
+    showLeader = !showLeader;
+    if (showLeader) { showHelp=false; if (gs?.phase==='playing' && !gs.paused) { gs.paused=true; if (locked) document.exitPointerLock(); } }
+    else if (gs?.phase==='playing') gs.paused=false;
+    return;
+  }
+  // Escape closes leaderboard
+  if (e.code==='Escape' && showLeader) { showLeader=false; gs && (gs.paused=false); return; }
+  // C — clear scores (only while leaderboard open)
+  if (e.code==='KeyC' && showLeader) {
+    try { localStorage.removeItem('zombieSwordScores'); } catch(e2) {}
+    return;
+  }
   // Pause toggle (P or Escape) — only during active play
   if ((e.code==='KeyP' || e.code==='Escape') && gs?.phase==='playing') {
     gs.paused = !gs.paused;
@@ -2229,8 +2333,8 @@ document.addEventListener('keydown', e => {
     gs = { phase:'worldselect' }; blinkT=0;
     return;
   }
-  // Skip other actions when paused or showing help
-  if (gs?.paused || showHelp) return;
+  // Skip other actions when paused or showing help or leaderboard
+  if (gs?.paused || showHelp || showLeader) return;
 
   if (e.code==='Space' && gs?.phase==='playing' && !sw.on) {
     sw.on=true; sw.t=0; sw.hits=new Set(); playSwing(gs.swordLevel);
@@ -2280,9 +2384,9 @@ canvas.addEventListener('click', e => {
 function saveScore() {
   const scores = getScores();
   scores.push({ kills:gs.kills, level:gs.level, sword:gs.swordLevel,
-                date:new Date().toLocaleDateString() });
+                world:worldCfg.name, date:new Date().toLocaleDateString() });
   scores.sort((a,b) => b.kills - a.kills);
-  if (scores.length > 5) scores.length = 5;
+  if (scores.length > 10) scores.length = 10;
   try { localStorage.setItem('zombieSwordScores', JSON.stringify(scores)); } catch(e) {}
 }
 
