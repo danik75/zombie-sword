@@ -614,21 +614,25 @@ function blood(z) {
 }
 
 function spawnBoss() {
-  // Pick a floor tile far from the player
-  const pool = [];
+  // Prefer floor tiles 4-8 tiles from player so the boss is visible
+  const near = [], far = [];
   for (let my=1;my<MAP_H-1;my++)
     for (let mx=1;mx<MAP_W-1;mx++)
       if (!MAP[my][mx]) {
-        const cx=mx+.5,cy=my+.5;
-        if ((cx-pl.x)**2+(cy-pl.y)**2>64) pool.push({x:cx,y:cy});
+        const tx=mx+.5,ty=my+.5;
+        const d2=(tx-pl.x)**2+(ty-pl.y)**2;
+        if (d2>=16 && d2<=64) near.push({x:tx,y:ty});
+        else if (d2>64) far.push({x:tx,y:ty});
       }
+  const pool = near.length ? near : far;
   if (!pool.length) return;
   const pos = pool[Math.floor(Math.random()*pool.length)];
   boss = { x:pos.x, y:pos.y, hp:40, maxHp:40, wp:0, throwTimer:120,
            hitFlash:0, id:9999, spd:0.009, r:0.55 };
   zombies = []; // absorb all zombies into boss
-  gs.shake=30; gs.shakeAmt=14;
-  gs.warnText='☠ BONE LORD AWAKENS ☠'; gs.warnTimer=220;
+  gs.shake=60; gs.shakeAmt=22;
+  gs.flash=18;
+  gs.warnText='☠ BONE LORD AWAKENS ☠'; gs.warnTimer=360;
 }
 
 function milestones(prev, now) {
