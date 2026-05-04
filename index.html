@@ -340,7 +340,7 @@ function stopDanceMusic() {
 }
 
 // ── State ──────────────────────────────────────────────────────────────────
-let gs, pl, sw, zombies, particles, grail;
+let gs, pl, sw, zombies, particles, grail, boss, bones;
 let MAP = WORLDS[0].map, worldCfg = WORLDS[0], selectedWorld = 0;
 let zId = 0, spawnT = 0, blinkT = 0, lastTs = 0, gameTime = 0;
 const keys = {};
@@ -367,7 +367,7 @@ function init(wIdx) {
          hp:100, maxHp:100, iTimer:0,
          bobPhase:0, bobY:0, moving:false };
   sw = { on:false, t:0, dur:220, hits:new Set() };
-  zombies = []; particles = [];
+  zombies = []; particles = []; boss = null; bones = [];
   spawnT = 80; zId = 0;
 }
 
@@ -478,6 +478,48 @@ function update(dt) {
   }
   if (particles.length > 400) particles.splice(0, particles.length-400);
 
+  // Boss update
+  if (boss) {
+    // Chase player slowly
+    let bdx = pl.x-boss.x, bdy = pl.y-boss.y;
+    const bd = Math.sqrt(bdx*bdx+bdy*bdy)||1;
+    bdx /= bd; bdy /= bd;
+    const bnx = boss.x+bdx*boss.spd*df, bny = boss.y+bdy*boss.spd*df;
+    if (!solid(bnx,boss.y)) boss.x=bnx;
+    if (!solid(boss.x,bny)) boss.y=bny;
+    boss.wp += df*.004;
+    if (boss.hitFlash>0) boss.hitFlash-=df;
+
+    // Melee damage
+    const bpd = Math.sqrt((boss.x-pl.x)**2+(boss.y-pl.y)**2);
+    if (pl.iTimer<=0 && bpd<boss.r+.35) {
+      pl.hp-=20; pl.iTimer=80; playDamage();
+      if (pl.hp<=0) { pl.hp=0; gs.phase='gameover'; stopMusic(); stopDanceMusic(); saveScore(); return; }
+    }
+
+    // Throw bone every ~2s
+    boss.throwTimer -= df;
+    if (boss.throwTimer <= 0) {
+      boss.throwTimer = 110 + Math.random()*60;
+      const ang = Math.atan2(pl.y-boss.y, pl.x-boss.x) + (Math.random()-.5)*.4;
+      bones.push({ x:boss.x, y:boss.y, vx:Math.cos(ang)*.045, vy:Math.sin(ang)*.045,
+                   rot:0, life:220 });
+      gs.shake=6; gs.shakeAmt=4;
+    }
+  }
+
+  // Bone projectiles
+  for (let i=bones.length-1;i>=0;i--) {
+    const b=bones[i];
+    b.x+=b.vx*df; b.y+=b.vy*df; b.rot+=df*.12; b.life-=df;
+    if (solid(b.x,b.y)||b.life<=0) { bones.splice(i,1); continue; }
+    const bpd=Math.sqrt((b.x-pl.x)**2+(b.y-pl.y)**2);
+    if (pl.iTimer<=0 && bpd<.35) {
+      pl.hp-=15; pl.iTimer=50; playDamage(); bones.splice(i,1);
+      if (pl.hp<=0) { pl.hp=0; gs.phase='gameover'; stopMusic(); stopDanceMusic(); saveScore(); return; }
+    }
+  }
+
   // Grail animation + pickup
   if (grail) {
     grail.bobPhase  += df * 0.045;
@@ -517,6 +559,37 @@ function hitCheck() {
       if (z.health <= 0) kill(i, z);
     }
   }
+  // Boss hit detection
+  if (boss && !sw.hits.has(boss.id)) {
+    const dx=boss.x-pl.x, dy=boss.y-pl.y;
+    if (dx*dx+dy*dy <= (reach*1.5)*(reach*1.5)) {
+      const diff = na(Math.atan2(dy,dx)-pl.angle);
+      if (diff<=ha||diff>=Math.PI*2-ha) {
+        sw.hits.add(boss.id);
+        boss.hp--; boss.hitFlash=14;
+        playHit();
+        gs.shake=Math.max(gs.shake,8); gs.shakeAmt=Math.max(gs.shakeAmt,5);
+        if (boss.hp<=0) killBoss();
+      }
+    }
+  }
+}
+
+function killBoss() {
+  // Huge explosion of blood particles
+  for (let i=0;i<60;i++) {
+    const ang=(i/60)*Math.PI*2, spd=2+Math.random()*5;
+    particles.push({x:boss.x*30,y:boss.y*30,
+      vx:Math.cos(ang)*spd,vy:Math.sin(ang)*spd,
+      life:1,dec:.012+Math.random()*.01,r:4+Math.random()*5,
+      col:Math.random()<.6?'#cc0000':'#ff4400'});
+  }
+  playDie(); playDie();
+  boss=null; bones=[];
+  gs.shake=40; gs.shakeAmt=18;
+  gs.warnText='☠ BONE LORD DEFEATED ☠'; gs.warnTimer=240;
+  gs.goldenFlash=20;
+  spawnGrail(); // grail always drops from boss
 }
 
 function kill(idx, z) {
@@ -540,9 +613,32 @@ function blood(z) {
   }
 }
 
+function spawnBoss() {
+  // Pick a floor tile far from the player
+  const pool = [];
+  for (let my=1;my<MAP_H-1;my++)
+    for (let mx=1;mx<MAP_W-1;mx++)
+      if (!MAP[my][mx]) {
+        const cx=mx+.5,cy=my+.5;
+        if ((cx-pl.x)**2+(cy-pl.y)**2>64) pool.push({x:cx,y:cy});
+      }
+  if (!pool.length) return;
+  const pos = pool[Math.floor(Math.random()*pool.length)];
+  boss = { x:pos.x, y:pos.y, hp:40, maxHp:40, wp:0, throwTimer:120,
+           hitFlash:0, id:9999, spd:0.009, r:0.55 };
+  zombies = []; // absorb all zombies into boss
+  gs.shake=30; gs.shakeAmt=14;
+  gs.warnText='☠ BONE LORD AWAKENS ☠'; gs.warnTimer=220;
+}
+
 function milestones(prev, now) {
-  // Spawn golden grail every 10 kills (if none active)
-  if (Math.floor(now/10) > Math.floor(prev/10) && !grail) {
+  // At 10 kills: spawn boss instead of grail
+  if (Math.floor(now/10) > Math.floor(prev/10) && !boss) {
+    spawnBoss(); return;
+  }
+
+  // After boss dies, spawn golden grail
+  if (!boss && Math.floor(now/10) > Math.floor(prev/10) && !grail) {
     spawnGrail();
   }
 
@@ -1168,6 +1264,197 @@ function drawGrail() {
     ctx.shadowColor='#ffd700'; ctx.shadowBlur=12;
     ctx.beginPath(); ctx.arc(sx, cy2, (60+Math.sin(grail.glowPhase)*10)*sc, 0, Math.PI*2);
     ctx.stroke();
+    ctx.restore();
+  }
+}
+
+// ── Boss sprite ───────────────────────────────────────────────────────────
+function drawBoss() {
+  if (!boss) return;
+  const pa = pl.angle;
+  const dirX = Math.cos(pa), dirY = Math.sin(pa);
+  const plX = -Math.sin(pa)*.66, plY = Math.cos(pa)*.66;
+  const inv = 1/(plX*dirY - dirX*plY);
+  const midY = CH/2 + pl.bobY;
+
+  const rx = boss.x-pl.x, ry = boss.y-pl.y;
+  const tX = inv*(dirY*rx - dirX*ry);
+  const tY = inv*(-plY*rx + plX*ry);
+  if (tY <= .15) return;
+
+  const sx = Math.floor(CW/2*(1+tX/tY));
+  const sh = Math.abs(Math.floor(CH/tY));
+  const SM = 2.6; // boss is 2.6× the visual size of a regular zombie
+  const left = sx - sh*SM/2, right = sx + sh*SM/2;
+  const cL = Math.max(0, Math.floor(left));
+  const cR = Math.min(CW, Math.ceil(right));
+
+  const clip = new Path2D(); let vis = false;
+  for (let cx=cL; cx<cR; cx++) {
+    if (tY < zBuf[Math.floor(cx/STRIP)]) { clip.rect(cx,0,1,CH); vis=true; }
+  }
+  if (!vis) return;
+
+  const fade = Math.min(1, 2.8/tY);
+  const sc = (sh/110) * SM;
+  const top = Math.floor(midY - sh*SM*.55);
+  const bot = Math.floor(midY + sh*SM*.45);
+  const cy2 = (top+bot)/2;
+
+  const flash = boss.hitFlash > 0;
+  const step = Math.sin(boss.wp) * 7;
+
+  ctx.save();
+  ctx.clip(clip);
+  ctx.translate(sx, cy2);
+  ctx.scale(sc, sc);
+  ctx.globalAlpha = fade;
+
+  // Ground shadow
+  ctx.save(); ctx.globalAlpha = fade * 0.4;
+  const gshG = ctx.createRadialGradient(0,62,0,0,62,44);
+  gshG.addColorStop(0,'rgba(0,0,0,0.8)'); gshG.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=gshG; ctx.beginPath(); ctx.ellipse(0,62,44,12,0,0,Math.PI*2); ctx.fill();
+  ctx.restore(); ctx.globalAlpha = fade;
+
+  if (flash) { ctx.filter = 'brightness(3) saturate(0)'; }
+
+  // === LEGS ===
+  const legCol = '#1a0a00', legLit = '#3a1800';
+  ctx.strokeStyle=legLit; ctx.lineWidth=16; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(9,28); ctx.lineTo(12+step,64); ctx.stroke();
+  ctx.strokeStyle=legCol; ctx.lineWidth=18;
+  ctx.beginPath(); ctx.moveTo(-9,28); ctx.lineTo(-12-step,64); ctx.stroke();
+  // Boots
+  ctx.strokeStyle='#0a0400'; ctx.lineWidth=14;
+  ctx.beginPath(); ctx.moveTo(-12-step,64); ctx.lineTo(-24-step,76); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(12+step,64); ctx.lineTo(24+step,76); ctx.stroke();
+
+  // === TORSO ===
+  const torsoG = ctx.createRadialGradient(-10,-10,4,-10,-10,52);
+  torsoG.addColorStop(0,'#7a2200'); torsoG.addColorStop(0.5,'#4a1000'); torsoG.addColorStop(1,'#200600');
+  ctx.fillStyle = torsoG;
+  ctx.beginPath();
+  ctx.moveTo(-22,28); ctx.lineTo(22,28); ctx.lineTo(18,-18); ctx.lineTo(-18,-18); ctx.closePath(); ctx.fill();
+  // Rib cage cracks
+  ctx.strokeStyle='rgba(0,0,0,0.6)'; ctx.lineWidth=2;
+  for (let r=-1;r<=1;r+=2) {
+    ctx.beginPath(); ctx.moveTo(r*4,-10); ctx.lineTo(r*8,20); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(r*10,-4); ctx.lineTo(r*14,14); ctx.stroke();
+  }
+
+  // === ARMS ===
+  const armCol='#5a1800', armLit='#8a2800';
+  // Left arm (outstretched, reaching)
+  ctx.strokeStyle=armLit; ctx.lineWidth=14; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(-18,-10); ctx.lineTo(-52+step*1.5,-22); ctx.stroke();
+  ctx.strokeStyle=armCol; ctx.lineWidth=12;
+  ctx.beginPath(); ctx.moveTo(-52+step*1.5,-22); ctx.lineTo(-68+step,-2); ctx.stroke();
+  // Right arm
+  ctx.strokeStyle=armCol; ctx.lineWidth=14;
+  ctx.beginPath(); ctx.moveTo(18,-10); ctx.lineTo(52-step*1.5,-22); ctx.stroke();
+  ctx.strokeStyle=armLit; ctx.lineWidth=12;
+  ctx.beginPath(); ctx.moveTo(52-step*1.5,-22); ctx.lineTo(68-step,-2); ctx.stroke();
+
+  // === HEAD ===
+  const hG = ctx.createRadialGradient(-8,-46,4,-8,-46,30);
+  hG.addColorStop(0,'#8a3000'); hG.addColorStop(0.6,'#5a1800'); hG.addColorStop(1,'#200600');
+  ctx.fillStyle=hG;
+  ctx.beginPath(); ctx.ellipse(0,-46,24,28,0,0,Math.PI*2); ctx.fill();
+
+  // Horns / bone protrusions
+  ctx.strokeStyle='#e8d090'; ctx.lineWidth=5; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(-16,-68); ctx.lineTo(-24,-88); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(16,-68); ctx.lineTo(24,-88); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0,-72); ctx.lineTo(0,-94); ctx.stroke();
+
+  // Eyes — glowing red
+  const eyeG1 = ctx.createRadialGradient(-10,-48,1,-10,-48,9);
+  eyeG1.addColorStop(0,'#ff8800'); eyeG1.addColorStop(0.5,'#ff2200'); eyeG1.addColorStop(1,'rgba(180,0,0,0)');
+  ctx.fillStyle=eyeG1; ctx.beginPath(); ctx.arc(-10,-48,9,0,Math.PI*2); ctx.fill();
+  const eyeG2 = ctx.createRadialGradient(10,-48,1,10,-48,9);
+  eyeG2.addColorStop(0,'#ff8800'); eyeG2.addColorStop(0.5,'#ff2200'); eyeG2.addColorStop(1,'rgba(180,0,0,0)');
+  ctx.fillStyle=eyeG2; ctx.beginPath(); ctx.arc(10,-48,9,0,Math.PI*2); ctx.fill();
+
+  // Mouth — jagged grin
+  ctx.strokeStyle='#ff4400'; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.moveTo(-14,-36); ctx.lineTo(-8,-30); ctx.lineTo(-4,-34);
+  ctx.lineTo(0,-30); ctx.lineTo(4,-34); ctx.lineTo(8,-30); ctx.lineTo(14,-36); ctx.stroke();
+
+  if (flash) ctx.filter = 'none';
+
+  // Health bar (above sprite, in sprite-local coords unscaled)
+  ctx.restore(); // pop the scale/translate
+  ctx.save();
+  ctx.globalAlpha = fade;
+  const barW = 120, barH = 10;
+  const barX = sx - barW/2;
+  const barY = top - 20;
+  ctx.fillStyle='#330000'; ctx.fillRect(barX, barY, barW, barH);
+  const hpFrac = boss.hp / boss.maxHp;
+  const hpCol = hpFrac > 0.5 ? '#cc2200' : hpFrac > 0.25 ? '#ff6600' : '#ff0000';
+  ctx.fillStyle = hpCol;
+  ctx.fillRect(barX, barY, barW*hpFrac, barH);
+  ctx.strokeStyle='#660000'; ctx.lineWidth=2;
+  ctx.strokeRect(barX, barY, barW, barH);
+  // Label
+  ctx.font='bold 13px monospace'; ctx.textAlign='center'; ctx.fillStyle='#ffccaa';
+  ctx.shadowColor='#ff4400'; ctx.shadowBlur=8;
+  ctx.fillText('☠ BONE LORD', sx, barY-4);
+  ctx.shadowBlur=0;
+  ctx.restore();
+}
+
+// ── Bone projectiles ──────────────────────────────────────────────────────
+function drawBones() {
+  if (!bones.length) return;
+  const pa = pl.angle;
+  const dirX = Math.cos(pa), dirY = Math.sin(pa);
+  const plX = -Math.sin(pa)*.66, plY = Math.cos(pa)*.66;
+  const inv = 1/(plX*dirY - dirX*plY);
+  const midY = CH/2 + pl.bobY;
+
+  for (const b of bones) {
+    const rx = b.x-pl.x, ry = b.y-pl.y;
+    const tX = inv*(dirY*rx - dirX*ry);
+    const tY = inv*(-plY*rx + plX*ry);
+    if (tY <= .1) continue;
+
+    const sx = Math.floor(CW/2*(1+tX/tY));
+    const sh = Math.abs(Math.floor(CH/tY));
+    const bsize = Math.max(6, sh * 0.18);
+    const cL = Math.max(0, sx-bsize); const cR = Math.min(CW, sx+bsize);
+    let vis = false;
+    for (let cx=cL; cx<cR; cx++) {
+      if (tY < zBuf[Math.floor(cx/STRIP)]) { vis=true; break; }
+    }
+    if (!vis) continue;
+
+    const fade = Math.min(1, (b.life/220)*3);
+    const cy2 = midY;
+
+    ctx.save();
+    ctx.globalAlpha = fade;
+    ctx.translate(sx, cy2);
+    ctx.rotate(b.rot);
+    ctx.scale(bsize/22, bsize/22);
+
+    // Bone shape: two knobbed ends + shaft
+    const boneCol='#e8d890', boneShadow='#a09060';
+    // Shaft
+    ctx.strokeStyle=boneCol; ctx.lineWidth=6; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(-22,0); ctx.lineTo(22,0); ctx.stroke();
+    // Knobs
+    ctx.fillStyle=boneCol;
+    ctx.beginPath(); ctx.arc(-22,0,8,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(22,0,8,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle=boneShadow;
+    ctx.beginPath(); ctx.arc(-22,4,5,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(22,4,5,0,Math.PI*2); ctx.fill();
+    // Center cross
+    ctx.strokeStyle=boneCol; ctx.lineWidth=5;
+    ctx.beginPath(); ctx.moveTo(0,-14); ctx.lineTo(0,14); ctx.stroke();
+
     ctx.restore();
   }
 }
@@ -1863,6 +2150,17 @@ function drawRadar() {
   ctx.strokeStyle='rgba(80,200,80,0.55)'; ctx.lineWidth=2;
   ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.stroke();
 
+  // Boss dot on radar (large pulsing red)
+  if (boss) {
+    const {x:brx, y:bry} = toRadar(boss.x-pl.x, boss.y-pl.y);
+    const bsx=cx+brx*sc, bsy=cy+bry*sc;
+    const pulse = 5 + Math.sin(Date.now()*.008)*2;
+    ctx.fillStyle='#ff2200'; ctx.shadowColor='#ff2200'; ctx.shadowBlur=14;
+    ctx.beginPath(); ctx.arc(Math.max(cx-r+5,Math.min(cx+r-5,bsx)),
+                              Math.max(cy-r+5,Math.min(cy+r-5,bsy)),pulse,0,Math.PI*2); ctx.fill();
+    ctx.shadowBlur=0;
+  }
+
   // Grail dot on radar
   if (grail) {
     const {x:rrx, y:rry} = toRadar(grail.x-pl.x, grail.y-pl.y);
@@ -2250,10 +2548,12 @@ function draw() {
   castRays();
   ctx.restore();
 
-  // 3. Sprites + grail
+  // 3. Sprites + grail + boss + bones
   ctx.save(); if(gs.shake>0) ctx.translate(sx,sy);
   drawSprites();
   drawGrail();
+  drawBones();
+  drawBoss();
   ctx.restore();
 
   // 4. Torch + vignette (drawn after world, before HUD)
