@@ -1958,6 +1958,10 @@ function drawPause() {
   ctx.font='16px monospace'; ctx.fillStyle='#888';
   ctx.fillText('Press  P  or  ESC  to resume',CW/2,CH/2+28);
   ctx.fillText('Press  H  for controls & help',CW/2,CH/2+54);
+  ctx.font='bold 16px monospace'; ctx.fillStyle='#ffcc44';
+  ctx.shadowColor='#ffaa00'; ctx.shadowBlur=8;
+  ctx.fillText('Press  Q  to choose a new world',CW/2,CH/2+86);
+  ctx.shadowBlur=0;
 }
 
 // ── Help / instructions overlay ───────────────────────────────────────────
@@ -2135,6 +2139,13 @@ document.addEventListener('keydown', e => {
   if ((e.code==='KeyP' || e.code==='Escape') && gs?.phase==='playing') {
     gs.paused = !gs.paused;
     if (gs.paused && locked) document.exitPointerLock();
+    return;
+  }
+  // Q — return to world select from pause screen
+  if (e.code==='KeyQ' && gs?.phase==='playing' && gs.paused) {
+    stopMusic(); stopDanceMusic();
+    if (locked) document.exitPointerLock();
+    gs = { phase:'worldselect' }; blinkT=0;
     return;
   }
   // Skip other actions when paused or showing help
