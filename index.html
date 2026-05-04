@@ -327,6 +327,95 @@ function stopDanceMusic() {
   } catch(e) {}
 }
 
+// ── Theme music (funky disco-metal for title/world-select) ────────────────
+let themeIntervalId = null, themeNodes = [];
+function startThemeMusic() {
+  try {
+    stopThemeMusic();
+    const ac = getAudio();
+    const master = ac.createGain(); master.gain.value = 0;
+    master.connect(ac.destination);
+    master.gain.linearRampToValueAtTime(0.62, ac.currentTime + 1.2);
+
+    // Chord progression: Am - F - C - G (disco-metal vibe, 140 BPM)
+    const bpm = 140, beat = 60 / bpm;
+    // Bass riff notes (root + octave jumps)
+    const bassSeq = [110, 110, 87.3, 87.3, 98, 98, 110, 130.8,
+                     87.3, 87.3, 65.4, 65.4, 73.4, 73.4, 87.3, 98];
+    // Lead melody (pentatonic minor, high register)
+    const leadSeq = [440, 0, 523.3, 440, 392, 0, 349.2, 440,
+                     392, 0, 329.6, 392, 349.2, 0, 440, 523.3];
+    let b = 0;
+
+    function scheduleBeat() {
+      if (!themeIntervalId) return;
+      const ac2 = getAudio(), t = ac2.currentTime;
+
+      // Driving bass
+      const bass = ac2.createOscillator(), bg = ac2.createGain();
+      bass.type = 'sawtooth'; bass.frequency.value = bassSeq[b % bassSeq.length];
+      bg.gain.setValueAtTime(0.28, t); bg.gain.exponentialRampToValueAtTime(0.001, t + beat * 0.55);
+      bass.connect(bg); bg.connect(master); bass.start(t); bass.stop(t + beat * 0.6);
+
+      // Power chord (2nd + 5th)
+      const fifth = bassSeq[b % bassSeq.length] * 1.5;
+      const ch = ac2.createOscillator(), cg = ac2.createGain();
+      ch.type = 'square'; ch.frequency.value = fifth; ch.detune.value = 12;
+      cg.gain.setValueAtTime(0.07, t); cg.gain.exponentialRampToValueAtTime(0.001, t + beat * 0.45);
+      ch.connect(cg); cg.connect(master); ch.start(t); ch.stop(t + beat * 0.5);
+
+      // Lead melody (every 2 beats)
+      if (b % 2 === 0) {
+        const freq = leadSeq[(b / 2) % leadSeq.length];
+        if (freq > 0) {
+          const ld = ac2.createOscillator(), lg = ac2.createGain();
+          ld.type = 'triangle'; ld.frequency.value = freq;
+          lg.gain.setValueAtTime(0.14, t); lg.gain.exponentialRampToValueAtTime(0.001, t + beat * 1.8);
+          ld.connect(lg); lg.connect(master); ld.start(t); ld.stop(t + beat * 1.9);
+        }
+      }
+
+      // Kick drum (4-on-the-floor)
+      const kick = ac2.createOscillator(), kg = ac2.createGain();
+      kick.type = 'sine'; kick.frequency.setValueAtTime(180, t); kick.frequency.exponentialRampToValueAtTime(28, t + beat * 0.3);
+      kg.gain.setValueAtTime(0.7, t); kg.gain.exponentialRampToValueAtTime(0.001, t + beat * 0.35);
+      kick.connect(kg); kg.connect(master); kick.start(t); kick.stop(t + beat * 0.38);
+
+      // Open hi-hat on offbeats
+      if (b % 2 === 1) {
+        const hbuf = ac2.createBuffer(1, Math.floor(ac2.sampleRate * 0.08), ac2.sampleRate);
+        const hd = hbuf.getChannelData(0);
+        for (let i = 0; i < hd.length; i++) hd[i] = (Math.random() * 2 - 1) * Math.exp(-i / hd.length * 18) * 0.4;
+        const hat = ac2.createBufferSource(), hg2 = ac2.createGain(); hg2.gain.value = 0.18;
+        hat.buffer = hbuf; hat.connect(hg2); hg2.connect(master); hat.start(t);
+      }
+
+      // Snare on 2 & 4
+      if (b % 4 === 1 || b % 4 === 3) {
+        const sbuf = ac2.createBuffer(1, Math.floor(ac2.sampleRate * 0.1), ac2.sampleRate);
+        const sd2 = sbuf.getChannelData(0);
+        for (let i = 0; i < sd2.length; i++) sd2[i] = (Math.random() * 2 - 1) * Math.exp(-i / sd2.length * 22) * 0.8;
+        const sn = ac2.createBufferSource(), sg2 = ac2.createGain(); sg2.gain.value = 0.28;
+        sn.buffer = sbuf; sn.connect(sg2); sg2.connect(master); sn.start(t);
+      }
+
+      b++;
+      themeIntervalId = setTimeout(scheduleBeat, beat * 1000);
+    }
+
+    themeIntervalId = setTimeout(scheduleBeat, 0);
+    themeNodes = [master];
+  } catch(e) {}
+}
+
+function stopThemeMusic() {
+  try {
+    if (themeIntervalId) { clearTimeout(themeIntervalId); themeIntervalId = null; }
+    themeNodes.forEach(n => { try{n.disconnect();}catch(e){} });
+    themeNodes = [];
+  } catch(e) {}
+}
+
 // ── State ──────────────────────────────────────────────────────────────────
 let gs, pl, sw, zombies, particles, grail;
 let MAP = WORLDS[0].map, worldCfg = WORLDS[0], selectedWorld = 0;
@@ -346,7 +435,7 @@ function init(wIdx) {
   MAP = WORLDS[selectedWorld].map;
   worldCfg = WORLDS[selectedWorld];
   gs = { phase:'playing', kills:0, swordLevel:0, level:1,
-         shake:0, shakeAmt:0, warnText:'', warnTimer:0, flash:0, goldenFlash:0, paused:false, danceTimer:0 };
+         shake:0, shakeAmt:0, warnText:'', warnTimer:0, flash:0, goldenFlash:0, paused:false, danceTimer:Infinity };
   grail = null;
   pl = { x:worldCfg.sx, y:worldCfg.sy, angle:0,
          hp:100, maxHp:100, iTimer:0,
@@ -435,22 +524,18 @@ function update(dt) {
     }
 
     if (z.hitFlash > 0) z.hitFlash -= df;
-    if (gs.danceTimer > 0) {
-      z.wp = gameTime*0.012 + z.id*0.7;
-      const dp = gameTime*0.003 + z.id*0.6;
-      const sx = Math.cos(dp*2.5)*0.016*df, sy = Math.sin(dp*1.8)*0.012*df;
-      if (!solid(z.x+sx,z.y)) z.x+=sx;
-      if (!solid(z.x,z.y+sy)) z.y+=sy;
-    } else {
-      z.wp += df*.006*(z.spd/.013);
-      const nx = z.x+dx*z.spd*df, ny = z.y+dy*z.spd*df;
-      if (!solid(nx,z.y)) z.x=nx;
-      if (!solid(z.x,ny)) z.y=ny;
-      const pd = Math.sqrt((z.x-pl.x)**2+(z.y-pl.y)**2);
-      if (pl.iTimer<=0 && pd<z.r+.28) {
-        pl.hp-=10; pl.iTimer=60; playDamage();
-        if (pl.hp<=0) { pl.hp=0; gs.phase='gameover'; stopMusic(); stopDanceMusic(); saveScore(); return; }
-      }
+    // Always dancing — but they still hunt and hurt you
+    z.wp = gameTime*0.012 + z.id*0.7;
+    const dp = gameTime*0.003 + z.id*0.6;
+    // Dance wiggle: lateral sway + drift toward player
+    const dsx = Math.cos(dp*2.5)*0.014*df + dx*z.spd*0.55*df;
+    const dsy = Math.sin(dp*1.8)*0.010*df + dy*z.spd*0.55*df;
+    if (!solid(z.x+dsx,z.y)) z.x+=dsx;
+    if (!solid(z.x,z.y+dsy)) z.y+=dsy;
+    const pd = Math.sqrt((z.x-pl.x)**2+(z.y-pl.y)**2);
+    if (pl.iTimer<=0 && pd<z.r+.28) {
+      pl.hp-=10; pl.iTimer=60; playDamage();
+      if (pl.hp<=0) { pl.hp=0; gs.phase='gameover'; stopMusic(); stopDanceMusic(); saveScore(); return; }
     }
   }
 
@@ -475,7 +560,7 @@ function update(dt) {
   if (gs.warnTimer > 0) gs.warnTimer -= df;
   if (gs.flash > 0) gs.flash -= df;
   if (gs.goldenFlash > 0) gs.goldenFlash -= df;
-  if (gs.danceTimer > 0) { gs.danceTimer -= dt; if (gs.danceTimer <= 0) stopDanceMusic(); }
+  // danceTimer is always Infinity — zombies never stop dancing
 }
 
 function tryMove(dx, dy) {
@@ -572,13 +657,11 @@ function collectGrail() {
   gs.level++;
   pl.maxHp = Math.min(pl.maxHp + 25, 250);
   pl.hp    = pl.maxHp;
-  gs.warnText    = `LEVEL ${gs.level}  ✦  ZOMBIE DANCE!`;
+  gs.warnText    = `LEVEL ${gs.level}  ✦  KEEP DANCING!`;
   gs.warnTimer   = 240;
   gs.goldenFlash = 14;
-  gs.danceTimer  = 5200;
   gs.shake = 28; gs.shakeAmt = 10;
   playGrail();
-  startDanceMusic();
   // Golden ring particles at screen center
   for (let i = 0; i < 30; i++) {
     const ang = (i/30)*Math.PI*2, spd = 3+Math.random()*4;
@@ -1792,7 +1875,13 @@ function drawTitle() {
   ctx.fillText('ZOMBIE SWORD',CW/2,CH/2-85);
   ctx.shadowBlur=0;
   ctx.font='18px monospace'; ctx.fillStyle='#e8e0c8';
-  ctx.fillText('Survive the night. Grow the blade.',CW/2,CH/2-28);
+  ctx.fillText('Survive the night. Grow the blade.',CW/2,CH/2-40);
+  // Hard mode label
+  const hpulse = 0.7 + Math.sin(Date.now()*0.004)*0.3;
+  ctx.font='bold 15px monospace'; ctx.fillStyle=`rgba(255,${Math.floor(80+hpulse*80)},255,${hpulse})`;
+  ctx.shadowColor='#ff00ff'; ctx.shadowBlur=14*hpulse;
+  ctx.fillText('★ HARD MODE: ZOMBIES ALWAYS DANCING ★',CW/2,CH/2-12);
+  ctx.shadowBlur=0;
   ctx.font='14px monospace'; ctx.fillStyle='#888';
   ctx.fillText('WASD / Arrows = move  |  A/D = turn  |  CLICK = mouse look + swing  |  SPACE = swing',CW/2,CH/2+20);
   ctx.font='13px monospace'; ctx.fillStyle='#666';
@@ -2066,8 +2155,8 @@ document.addEventListener('mousemove', e => {
 
 canvas.addEventListener('click', e => {
   if (showHelp) { showHelp=false; gs && (gs.paused=false); return; }
-  if (!gs || gs.phase==='title') { gs={phase:'worldselect'}; blinkT=0; return; }
-  if (gs.phase==='gameover')     { gs={phase:'worldselect'}; blinkT=0; return; }
+  if (!gs || gs.phase==='title') { gs={phase:'worldselect'}; blinkT=0; startThemeMusic(); return; }
+  if (gs.phase==='gameover')     { gs={phase:'worldselect'}; blinkT=0; startThemeMusic(); return; }
   if (gs.phase==='worldselect') {
     const rect=canvas.getBoundingClientRect();
     const mx=(e.clientX-rect.left)*(CW/rect.width);
@@ -2078,7 +2167,7 @@ canvas.addEventListener('click', e => {
       const col=i%cols, row=Math.floor(i/cols);
       const x=startX+col*(cw+gap), y=startY+row*(ch+gap);
       if (mx>=x&&mx<=x+cw&&my>=y&&my<=y+ch) {
-        selectedWorld=i; init(i); startMusic(); canvas.requestPointerLock(); return;
+        selectedWorld=i; init(i); stopThemeMusic(); startDanceMusic(); canvas.requestPointerLock(); return;
       }
     }
     return;
