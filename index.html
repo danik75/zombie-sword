@@ -693,11 +693,11 @@ function drawSprites() {
     ctx.globalAlpha = fade;
 
     // Per-zombie skin/cloth variants with lit/dark tones for 3D shading
-    const skinLit  = ['#c4ac88','#b8a47e','#caae90','#bca882'][z.id%4];
-    const skinBase = ['#907868','#887060','#947a6c','#8c7864'][z.id%4];
-    const skinDark = ['#3e2e20','#38281c','#422e22','#3c2c1e'][z.id%4];
-    const cloth    = z.id%2===0 ? '#3c3026' : '#2e303c';
-    const clothLit = z.id%2===0 ? '#5a4e3a' : '#464660';
+    const skinLit  = ['#b4cc90','#a8c288','#bccca0','#a8be8e'][z.id%4];
+    const skinBase = ['#8aaa70','#7e9e66','#94aa7a','#82a06c'][z.id%4];
+    const skinDark = ['#445030','#3c4a28','#4a5834','#405030'][z.id%4];
+    const cloth    = z.id%2===0 ? '#2e2218' : '#22222e';
+    const clothLit = z.id%2===0 ? '#4e3e2e' : '#3c3c50';
     const step = Math.sin(z.wp) * (dancing ? 22 : 5);
 
     // Ground shadow blob
@@ -718,25 +718,12 @@ function drawSprites() {
     // Front leg lit edge
     ctx.strokeStyle=clothLit; ctx.lineWidth=3;
     ctx.beginPath(); ctx.moveTo(-10,23); ctx.lineTo(-12-step,49); ctx.stroke();
-    // Cloven hooves
-    for (const [hx,hs] of [[-9-step,-1],[9+step,1]]) {
-      ctx.fillStyle='#18140e'; ctx.beginPath(); ctx.ellipse(hx+hs*5,60,10,6.5,hs*0.14,0,Math.PI*2); ctx.fill();
-      ctx.fillStyle='#2c2418'; ctx.beginPath(); ctx.ellipse(hx+hs*4,57,7,4.5,hs*0.1,0,Math.PI*2); ctx.fill();
-      ctx.strokeStyle='#0a0806'; ctx.lineWidth=1.8; ctx.lineCap='round';
-      ctx.beginPath(); ctx.moveTo(hx+hs*5,52); ctx.lineTo(hx+hs*5,65); ctx.stroke();
-    }
-
-    // === DONKEY TAIL (behind torso) ===
-    ctx.save();
-    ctx.strokeStyle=skinDark; ctx.lineWidth=7; ctx.lineCap='round';
-    ctx.beginPath(); ctx.moveTo(13,6); ctx.bezierCurveTo(22,12,30,24,24,40); ctx.stroke();
-    ctx.strokeStyle=skinBase; ctx.lineWidth=4;
-    ctx.beginPath(); ctx.moveTo(13,6); ctx.bezierCurveTo(22,12,30,24,24,40); ctx.stroke();
-    ctx.strokeStyle=skinDark; ctx.lineWidth=3;
-    for (let t=-2;t<=2;t++) {
-      ctx.beginPath(); ctx.moveTo(24+t,40); ctx.quadraticCurveTo(28+t*2,50,25+t,58); ctx.stroke();
-    }
-    ctx.restore();
+    // Boots
+    ctx.strokeStyle='#100806'; ctx.lineWidth=9; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(-9-step,50); ctx.lineTo(-18-step,58); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(9+step,50);  ctx.lineTo(18+step,58);  ctx.stroke();
+    ctx.strokeStyle='#30180a'; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.moveTo(-11-step,50); ctx.lineTo(-17-step,56); ctx.stroke();
 
     // === TORSO ===
     // Cylindrical torso — radial gradient simulates rounded cloth
@@ -823,30 +810,11 @@ function drawSprites() {
     neckG.addColorStop(0,skinLit); neckG.addColorStop(1,skinDark);
     ctx.fillStyle=neckG; ctx.beginPath(); ctx.roundRect(-5,-26,10,12,3); ctx.fill();
 
-    // === DONKEY EARS (behind head) ===
-    for (const [ex,lean] of [[-6,-0.16],[6,0.16]]) {
-      ctx.save();
-      ctx.translate(ex,-56); ctx.rotate(lean);
-      // Outer ear
-      const eg=ctx.createLinearGradient(0,2,lean*3,-30);
-      eg.addColorStop(0,skinBase); eg.addColorStop(1,skinDark);
-      ctx.fillStyle=eg;
-      ctx.beginPath();
-      ctx.moveTo(-6,2); ctx.lineTo(-5,-22); ctx.quadraticCurveTo(0,-32,5,-22); ctx.lineTo(6,2);
-      ctx.closePath(); ctx.fill();
-      // Inner ear (pink)
-      ctx.fillStyle='#c07888';
-      ctx.beginPath();
-      ctx.moveTo(-3.5,0); ctx.lineTo(-3,-19); ctx.quadraticCurveTo(0,-27,3,-19); ctx.lineTo(3.5,0);
-      ctx.closePath(); ctx.fill();
-      ctx.restore();
-    }
-
     // === HEAD — directional radial lighting ===
-    const headG=ctx.createRadialGradient(-5,-52,2,0,-41,20);
+    const headG=ctx.createRadialGradient(-5,-50,2,0,-40,18);
     headG.addColorStop(0,skinLit); headG.addColorStop(.42,skinBase); headG.addColorStop(1,skinDark);
     ctx.fillStyle=headG;
-    ctx.beginPath(); ctx.ellipse(0,-41,13,20,0,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(0,-40,14,17,0,0,Math.PI*2); ctx.fill();
     // Rim light (left-back edge — backlit halo)
     ctx.strokeStyle='rgba(120,180,80,0.14)'; ctx.lineWidth=4;
     ctx.beginPath(); ctx.ellipse(-6,-41,10,15,-0.2,Math.PI*.5,Math.PI*1.55); ctx.stroke();
@@ -884,26 +852,24 @@ function drawSprites() {
     noseG.addColorStop(0,'rgba(0,0,0,0.65)'); noseG.addColorStop(1,'rgba(0,0,0,0)');
     ctx.fillStyle=noseG; ctx.beginPath(); ctx.ellipse(0,-38,3,4,0,0,Math.PI*2); ctx.fill();
 
-    // Donkey muzzle — wide protruding snout
-    const muzzG=ctx.createRadialGradient(-4,-31,3,0,-30,16);
-    muzzG.addColorStop(0,skinLit); muzzG.addColorStop(.55,skinBase); muzzG.addColorStop(1,skinDark);
-    ctx.fillStyle=muzzG; ctx.beginPath(); ctx.ellipse(0,-30,14,9,0,0,Math.PI*2); ctx.fill();
-    // Muzzle highlight
-    ctx.fillStyle='rgba(255,255,240,0.13)'; ctx.beginPath(); ctx.ellipse(-3,-33,7,4,-.3,0,Math.PI*2); ctx.fill();
-    // Nostrils
-    ctx.fillStyle=skinDark;
-    ctx.beginPath(); ctx.ellipse(-5,-31,3,2.2,-.4,0,Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(5,-31,3,2.2,.4,0,Math.PI*2); ctx.fill();
-    ctx.fillStyle='#18100a';
-    ctx.beginPath(); ctx.ellipse(-5,-31.5,1.6,1.2,-.4,0,Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(5,-31.5,1.6,1.2,.4,0,Math.PI*2); ctx.fill();
-    // Big rectangular donkey teeth
-    const tthG=ctx.createLinearGradient(0,-36,0,-27);
-    tthG.addColorStop(0,'#f0e8c8'); tthG.addColorStop(1,'#c8bc8a');
+    // Lower jaw — lit gradient
+    const jawG=ctx.createRadialGradient(-3,-29,2,0,-30,12);
+    jawG.addColorStop(0,skinLit); jawG.addColorStop(.6,skinBase); jawG.addColorStop(1,skinDark);
+    ctx.fillStyle=jawG; ctx.beginPath(); ctx.ellipse(0,-30,10,6,0,0,Math.PI); ctx.fill();
+    ctx.fillStyle='#100202'; ctx.beginPath(); ctx.ellipse(0,-32,7,4,0,0,Math.PI*2); ctx.fill();
+
+    // Teeth — gradient from lit (top) to dark (bottom)
+    const tthG=ctx.createLinearGradient(0,-37,0,-28);
+    tthG.addColorStop(0,'#ece4c4'); tthG.addColorStop(1,'#9a906a');
     ctx.fillStyle=tthG;
-    for (const [tx,tw] of [[-5,4.5],[0.5,4.5]]) {
-      ctx.beginPath(); ctx.roundRect(tx,-36,tw,9,1); ctx.fill();
-      ctx.strokeStyle='#9a8a5a'; ctx.lineWidth=0.8; ctx.stroke();
+    for (const tx of [-6,-3,0,3,6]) {
+      ctx.beginPath(); ctx.moveTo(tx,-30); ctx.lineTo(tx-1.5,-36); ctx.lineTo(tx+1.5,-36); ctx.closePath(); ctx.fill();
+    }
+    const ltG=ctx.createLinearGradient(0,-30,0,-26);
+    ltG.addColorStop(0,'#ccc090'); ltG.addColorStop(1,'#7a7050');
+    ctx.fillStyle=ltG;
+    for (const tx of [-4,0,4]) {
+      ctx.beginPath(); ctx.moveTo(tx,-30); ctx.lineTo(tx-1.2,-27); ctx.lineTo(tx+1.2,-27); ctx.closePath(); ctx.fill();
     }
 
     // Hit flash overlay
