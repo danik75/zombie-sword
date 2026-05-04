@@ -349,6 +349,8 @@ let locked = false;
 let morning = false;
 let showHelp = false;
 let showLeader = false;
+let cheatBuffer = '', cheatActive = false;
+const CHEAT_CODE = 'IDDQD';
 
 function na(a) { return ((a % (Math.PI*2)) + Math.PI*2) % (Math.PI*2); }
 function ease(t) { return t < .5 ? 2*t*t : -1+(4-2*t)*t; }
@@ -1804,6 +1806,16 @@ function drawHUD() {
   ctx.fillStyle='rgba(150,150,150,0.4)'; ctx.font='10px monospace';
   ctx.fillText('[M] toggle', CW-20, CH-20);
 
+  // God mode badge
+  if (cheatActive) {
+    const gp = 0.7 + Math.sin(gameTime*0.006)*0.3;
+    ctx.textAlign='center'; ctx.font=`bold 14px monospace`;
+    ctx.fillStyle=`rgba(255,215,0,${gp})`;
+    ctx.shadowColor='#ffd700'; ctx.shadowBlur=18*gp;
+    ctx.fillText('★ GOD MODE ★', CW/2, CH-68);
+    ctx.shadowBlur=0;
+  }
+
   // Pause + help buttons (top center)
   ctx.textAlign='center'; ctx.font='11px monospace'; ctx.fillStyle='rgba(180,180,180,0.5)';
   ctx.fillText('[P] Pause    [H] Help    [M] Day/Night',CW/2,16);
@@ -2302,6 +2314,23 @@ document.addEventListener('keydown', e => {
   if (arrow.up || arrow.down || arrow.left || arrow.right) e.preventDefault();
   if (e.code === 'Space') e.preventDefault();
   keys[e.code] = true;
+
+  // Cheat code: type IDDQD anytime during play for god mode
+  if (gs?.phase==='playing' && e.key.length===1) {
+    cheatBuffer = (cheatBuffer + e.key.toUpperCase()).slice(-CHEAT_CODE.length);
+    if (cheatBuffer === CHEAT_CODE) {
+      cheatActive = !cheatActive;
+      if (cheatActive) {
+        pl.hp = pl.maxHp; gs.swordLevel = 4;
+        gs.warnText = '★ GOD MODE ★'; gs.warnTimer = 200;
+        gs.shake = 20; gs.shakeAmt = 8;
+      } else {
+        gs.warnText = 'god mode off'; gs.warnTimer = 120;
+      }
+      cheatBuffer = '';
+    }
+  }
+  if (cheatActive && gs?.phase==='playing') { pl.hp = pl.maxHp; }
 
   // Help toggle (H) — works from any screen
   if (e.code==='KeyH') {
